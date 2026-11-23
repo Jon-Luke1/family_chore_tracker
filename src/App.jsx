@@ -20,9 +20,46 @@ function App() {
   const [parentName, setParentName] = useState(null)
   const [childName, setChildName] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [authCheckInProgress, setAuthCheckInProgress] = useState(false)
+
+  // Check role and route to correct dashboard
+  const checkUserRole = async (userId) => {
+    if (authCheckInProgress) {
+      console.log('Auth check already in progress, skipping')
+      return
+    }
+    setAuthCheckInProgress(true)
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('role, display_name')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('Profile lookup error:', error)
+      } else if (profile) {
+        console.log('Found profile:', profile.role, profile.display_name)
+        if (profile.role === 'parent') {
+          setParentName(profile.display_name)
+          setView(VIEWS.PARENT_DASHBOARD)
+        } else {
+          setChildName(profile.display_name)
+          setView(VIEWS.CHILD_VIEW)
+        }
+      } else {
+        console.log('No profile found for user:', userId)
+      }
+    } catch (e) {
+      console.error('Unexpected error:', e)
+    } finally {
+      setAuthCheckInProgress(false)
+    }
+  }
 
   useEffect(() => {
-    // Check if already logged in
+    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         checkUserRole(session.user.id)
@@ -30,7 +67,11 @@ function App() {
       setLoading(false)
     })
 
+    // Listen for auth changes
+    let mounted = true
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return
+
       if (session?.user) {
         await checkUserRole(session.user.id)
       } else {
@@ -41,30 +82,17 @@ function App() {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const checkUserRole = async (userId) => {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, display_name')
-      .eq('id', userId)
-      .single()
-    
-    if (profile) {
-      if (profile.role === 'parent') {
-        setParentName(profile.display_name)
-        setView(VIEWS.PARENT_DASHBOARD)
-      } else {
-        setChildName(profile.display_name)
-        setView(VIEWS.CHILD_VIEW)
-      }
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-  }
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setView(VIEWS.LANDING)
+    setParentName(null)
+    setChildName(null)
   }
 
   if (loading) {
@@ -83,7 +111,7 @@ function App() {
           onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
         />
       )
-    
+
     case VIEWS.PARENT_LOGIN:
       return (
         <div className="relative">
@@ -93,10 +121,15 @@ function App() {
           >
             ← Back
           </button>
-          <ParentLogin onLogin={(name) => { setParentName(name); setView(VIEWS.PARENT_DASHBOARD) }} />
+          <ParentLogin
+            onLogin={(name) => {
+              setParentName(name)
+              setView(VIEWS.PARENT_DASHBOARD)
+            }}
+          />
         </div>
       )
-    
+
     case VIEWS.CHILD_SELECT:
       return (
         <div className="relative">
@@ -106,18 +139,26 @@ function App() {
           >
             ← Back
           </button>
-          <ChildSelect onLogin={(name) => { setChildName(name); setView(VIEWS.CHILD_VIEW) }} />
+          <ChildSelect
+            onLogin={(name) => {
+              setChildName(name)
+              setView(VIEWS.CHILD_VIEW)
+            }}
+          />
         </div>
       )
-    
+
     case VIEWS.PARENT_DASHBOARD:
       return <ParentDashboard name={parentName} onLogout={handleLogout} />
-    
+
     case VIEWS.CHILD_VIEW:
       return <ChildView displayName={childName} onLogout={handleLogout} />
-    
+
     default:
-      return <LandingPage onSelectParent={() => setView(VIEWS.PARENT_LOGIN)} onSelectChild={() => setView(VIEWS.CHILD_SELECT)} />
+      return <LandingPage
+        onSelectParent={() => setView(VIEWS.PARENT_LOGIN)}
+        onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
+      />
   }
 }
 

@@ -12,7 +12,7 @@ export default function ParentLogin({ onLogin }) {
     setLoading(true)
     setError('')
     
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -23,19 +23,8 @@ export default function ParentLogin({ onLogin }) {
       return
     }
     
-    // Check if user is a parent
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, display_name')
-      .eq('id', data.user.id)
-      .single()
-    
-    if (profile?.role === 'parent') {
-      onLogin(profile.display_name)
-    } else {
-      setError('Parent access required. Use the child login for children.')
-      supabase.auth.signOut()
-    }
+    // Let App.jsx onAuthStateChange handle the routing
+    // Don't do role checking here - it causes race conditions
     setLoading(false)
   }
 
