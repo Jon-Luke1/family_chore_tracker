@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Tab components
-function ChoresTab({ userId }) {
+function ChoresTab() {
   const [chores, setChores] = useState([])
+  const [children, setChildren] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily' })
+  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' })
+  const [addError, setAddError] = useState('')
 
   useEffect(() => {
     loadChores()
+    loadChildren()
   }, [])
 
   const loadChores = async () => {
@@ -16,14 +19,32 @@ function ChoresTab({ userId }) {
     setChores(data || [])
   }
 
+  const loadChildren = async () => {
+    const { data } = await supabase.from('profiles').select('id, display_name').eq('role', 'child')
+    setChildren(data || [])
+  }
+
   const addChore = async (e) => {
     e.preventDefault()
-    const { error } = await supabase.from('chores').insert([{ ...newChore, is_active: true }])
-    if (!error) {
-      setNewChore({ name: '', description: '', token_reward: 10, frequency: 'daily' })
-      setShowForm(false)
-      loadChores()
+    setAddError('')
+    
+    const choreData = {
+      ...newChore,
+      is_active: true,
+      assigned_to: newChore.assigned_to || null,
     }
+    
+    const { error } = await supabase.from('chores').insert([choreData])
+    
+    if (error) {
+      console.error('Add chore error:', error)
+      setAddError('Failed to add chore: ' + error.message)
+      return
+    }
+    
+    setNewChore({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' })
+    setShowForm(false)
+    loadChores()
   }
 
   const toggleActive = async (chore) => {
@@ -42,6 +63,8 @@ function ChoresTab({ userId }) {
 
       {showForm && (
         <form onSubmit={addChore} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
+          {addError && <div className="bg-red-50 text-red-600 p-2 rounded-lg text-sm">{addError}</div>}
+          
           <input
             type="text"
             placeholder="Chore name"
@@ -81,9 +104,22 @@ function ChoresTab({ userId }) {
               </select>
             </div>
           </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Assign to</label>
+            <select
+              value={newChore.assigned_to}
+              onChange={(e) => setNewChore({ ...newChore, assigned_to: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="">Up for grabs (any child)</option>
+              {children.map(c => (
+                <option key={c.id} value={c.id}>{c.display_name}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg">Add</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-semibold">Add Chore</button>
+            <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
       )}
@@ -95,9 +131,16 @@ function ChoresTab({ userId }) {
               <div>
                 <h4 className="font-medium text-gray-800">{chore.name}</h4>
                 {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">{chore.token_reward} tokens</span>
                   <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">{chore.frequency}</span>
+                  {chore.assigned_to ? (
+                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                      Assigned: {children.find(c => c.id === chore.assigned_to)?.display_name || 'Unknown'}
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">👆 Up for grabs</span>
+                  )}
                 </div>
               </div>
               <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
@@ -116,6 +159,7 @@ function RewardsTab() {
   const [rewards, setRewards] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [newReward, setNewReward] = useState({ name: '', description: '', token_cost: 50 })
+  const [addError, setAddError] = useState('')
 
   useEffect(() => { loadRewards() }, [])
 
@@ -126,12 +170,19 @@ function RewardsTab() {
 
   const addReward = async (e) => {
     e.preventDefault()
+    setAddError('')
+    
     const { error } = await supabase.from('rewards').insert([{ ...newReward, is_available: true }])
-    if (!error) {
-      setNewReward({ name: '', description: '', token_cost: 50 })
-      setShowForm(false)
-      loadRewards()
+    
+    if (error) {
+      console.error('Add reward error:', error)
+      setAddError('Failed to add reward: ' + error.message)
+      return
     }
+    
+    setNewReward({ name: '', description: '', token_cost: 50 })
+    setShowForm(false)
+    loadRewards()
   }
 
   const toggleAvailable = async (reward) => {
@@ -150,6 +201,8 @@ function RewardsTab() {
 
       {showForm && (
         <form onSubmit={addReward} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
+          {addError && <div className="bg-red-50 text-red-600 p-2 rounded-lg text-sm">{addError}</div>}
+          
           <input
             type="text"
             placeholder="Reward name"
@@ -176,8 +229,8 @@ function RewardsTab() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg">Add</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-semibold">Add Reward</button>
+            <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
       )}
