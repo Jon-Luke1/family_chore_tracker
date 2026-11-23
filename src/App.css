@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Mobile-first base styles */
+body {
+  @apply bg-gradient-to-br from-blue-50 to-indigo-100;
+}
+
+/* Touch-friendly tap targets */
+button {
+  @apply min-h-[44px];
+}
+
+/* Smooth scrolling for long lists */
+main {
+  @apply overflow-y-auto;
+  -webkit-overflow-scrolling: touch;
+}
