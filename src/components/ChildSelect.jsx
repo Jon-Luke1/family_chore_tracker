@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const CHILD_CREDENTIALS = {
-  'elliott@family.local': 'child123',
+  'ellie@family.local': 'child123',
   'emerson@family.local': 'child123',
 }
 
@@ -12,10 +12,8 @@ export default function ChildSelect({ onLogin }) {
   const [loggingIn, setLoggingIn] = useState(null)
 
   useEffect(() => {
-    // Fetch children from profiles - note: this requires the anon key to have select access on profiles
-    // For now, we'll use hardcoded names since anon RLS blocks this
     setChildren([
-      { id: 'ed1c7239-a48e-41b8-a590-3e4fbbf0c8d0', display_name: 'Elliott', color: 'bg-pink-500', emoji: '🌸' },
+      { id: 'ed1c7239-a48e-41b8-a590-3e4fbbf0c8d0', display_name: 'Ellie', color: 'bg-pink-500', emoji: '🌸' },
       { id: '14f81c44-4438-4d79-be57-5362f517fa6a', display_name: 'Emerson', color: 'bg-blue-500', emoji: '⭐' },
     ])
   }, [])

@@ -23,8 +23,8 @@ export default function ParentLogin({ onLogin }) {
       return
     }
     
-    // Let App.jsx onAuthStateChange handle the routing
-    // Don't do role checking here - it causes race conditions
+    // Immediately navigate - onAuthStateChange will verify the role
+    onLogin('Parent')
     setLoading(false)
   }
 
