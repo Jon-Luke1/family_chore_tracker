@@ -295,14 +295,17 @@ function ChildrenTab() {
 }
 
 // Main dashboard
-export default function ParentDashboard({ name, onLogout }) {
+export default function ParentDashboard({ name, onLogout, onBack }) {
   const [tab, setTab] = useState('chores')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <nav className="bg-white shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-indigo-600">Parent Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700">← Back</button>
+            <h1 className="text-xl font-bold text-indigo-600">Parent Dashboard</h1>
+          </div>
           <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
         </div>
       </nav>

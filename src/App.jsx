@@ -149,7 +149,7 @@ function App() {
       )
 
     case VIEWS.PARENT_DASHBOARD:
-      return <ParentDashboard name={parentName} onLogout={handleLogout} />
+      return <ParentDashboard name={parentName} onLogout={handleLogout} onBack={() => setView(VIEWS.LANDING)} />
 
     case VIEWS.CHILD_VIEW:
       return <ChildView displayName={childName} onLogout={handleLogout} />

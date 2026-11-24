@@ -17,24 +17,38 @@ drop policy if exists "Children can view their own transactions" on token_transa
 drop policy if exists "Parents can insert transactions" on token_transactions;
 drop policy if exists "Parents can view all balances" on child_balances;
 drop policy if exists "Children can view their own balance" on child_balances;
+drop policy if exists "Parents can manage chore assignments" on chore_assignments;
+drop policy if exists "Children can read their assignments" on chore_assignments;
+drop policy if exists "Parents can manage completed tasks" on completed_tasks;
+drop policy if exists "Children can view their completed tasks" on completed_tasks;
+
+-- Table privileges: RLS only filters rows; the API roles still need base GRANTs,
+-- otherwise queries fail with "permission denied for table ...".
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
 
 -- Helper function to check if current user is a parent
 create or replace function is_parent()
 returns boolean as $$
   select exists (
-    select 1 from profiles
+    select 1 from public.profiles
     where id = auth.uid() and role = 'parent'
   );
-$$ language sql security definer;
+$$ language sql security definer stable set search_path = public;
 
 -- Helper function to check if current user is a child
 create or replace function is_child()
 returns boolean as $$
   select exists (
-    select 1 from profiles
+    select 1 from public.profiles
     where id = auth.uid() and role = 'child'
   );
-$$ language sql security definer;
+$$ language sql security definer stable set search_path = public;
+
+grant execute on function is_parent(), is_child() to authenticated;
 
 -- Profiles policies
 create policy "Parents can view all profiles" on profiles

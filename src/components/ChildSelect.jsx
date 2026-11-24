@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const CHILD_CREDENTIALS = {
-  'ellie@family.local': 'child123',
   'emerson@family.local': 'child123',
 }
 
@@ -13,7 +12,6 @@ export default function ChildSelect({ onLogin }) {
 
   useEffect(() => {
     setChildren([
-      { id: 'a3269298-81fd-4593-a191-a0d95a210019', display_name: 'Ellie', color: 'bg-pink-500', emoji: '🌸' },
       { id: '14f81c44-4438-4d79-be57-5362f517fa6a', display_name: 'Emerson', color: 'bg-blue-500', emoji: '⭐' },
     ])
   }, [])
