@@ -25,7 +25,7 @@ export default function ChildView({ displayName, onLogout }) {
     setBalance(bal?.balance || 0)
 
     // Load available chores
-    const { data: choresData } = await supabase.from('chores').select('*').eq('is_active', true)
+    const { data: choresData } = await supabase.from('chores').select('*').eq('is_active', true).or(`assigned_to.is.null,assigned_to.eq.${userId}`)
     setChores(choresData || [])
 
     // Load available rewards

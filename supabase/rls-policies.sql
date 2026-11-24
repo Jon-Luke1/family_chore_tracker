@@ -67,8 +67,13 @@
     create policy "Parents can manage chores" on chores
       for all using (is_parent());
 
+    -- Children only see active chores that are assigned to them or up for grabs
     create policy "Children can read active chores" on chores
-      for select using (is_child());
+      for select using (
+        is_child()
+        and is_active = true
+        and (assigned_to is null or assigned_to = auth.uid())
+      );
 
     -- Goals policies
     create policy "Parents can manage goals" on goals
