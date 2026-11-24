@@ -391,7 +391,7 @@ function ChildHistory({ child }) {
   )
 }
 
-function ChildrenTab() {
+function ChildrenTab({ onViewChild }) {
   const [children, setChildren] = useState([])
   const [selectedId, setSelectedId] = useState(null)
 
@@ -430,6 +430,12 @@ function ChildrenTab() {
             </button>
             {selectedId === child.id && (
               <>
+                <button
+                  onClick={() => onViewChild(child)}
+                  className="mt-3 w-full py-2 bg-emerald-500 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600"
+                >
+                  Open {child.display_name}'s page (complete chores for them)
+                </button>
                 <BalanceOverride child={child} onSaved={loadChildren} />
                 <ChildHistory child={child} />
               </>
@@ -443,7 +449,7 @@ function ChildrenTab() {
 }
 
 // Main dashboard
-export default function ParentDashboard({ name, onLogout, onBack }) {
+export default function ParentDashboard({ name, onLogout, onBack, onViewChild }) {
   const [tab, setTab] = useState('chores')
 
   return (
@@ -481,7 +487,7 @@ export default function ParentDashboard({ name, onLogout, onBack }) {
           <div className="p-4">
             {tab === 'chores' && <ChoresTab />}
             {tab === 'rewards' && <RewardsTab />}
-            {tab === 'children' && <ChildrenTab />}
+            {tab === 'children' && <ChildrenTab onViewChild={onViewChild} />}
           </div>
         </div>
       </main>

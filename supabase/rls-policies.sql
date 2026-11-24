@@ -146,22 +146,23 @@
     end;
     $$ language plpgsql security definer set search_path = public;
 
-    -- Children complete chores through this function only. It takes the reward from
-    -- the chore itself, so a child can't award themselves arbitrary tokens.
-    create or replace function public.complete_chore(p_chore_id uuid)
+    -- Shared logic for completing a chore on behalf of a child. Not callable from
+    -- the API: it trusts p_child_id, so only the two wrappers below may use it.
+    -- The reward comes from the chore itself, so nobody can award arbitrary tokens.
+    create or replace function public._complete_chore(
+      p_child_id uuid,
+      p_chore_id uuid,
+      p_by_parent boolean default false
+    )
     returns void as $$
     declare
       v_chore chores%rowtype;
     begin
-      if not is_child() then
-        raise exception 'Only children can complete chores';
-      end if;
-
       -- Lock the chore row so rapid double-taps are processed one at a time
       select * into v_chore from chores
       where id = p_chore_id
         and is_active = true
-        and (assigned_to is null or assigned_to = auth.uid())
+        and (assigned_to is null or assigned_to = p_child_id)
       for update;
 
       if not found then
@@ -178,7 +179,7 @@
       -- Daily chores: once per child per calendar day (family timezone)
       if v_chore.frequency = 'daily' and exists (
         select 1 from completed_tasks
-        where child_id = auth.uid()
+        where child_id = p_child_id
           and chore_id = v_chore.id
           and completed_at >= date_trunc('day', now() at time zone 'America/New_York')
                               at time zone 'America/New_York'
@@ -187,16 +188,48 @@
       end if;
 
       insert into completed_tasks (child_id, chore_id, tokens_earned)
-      values (auth.uid(), v_chore.id, v_chore.token_reward);
+      values (p_child_id, v_chore.id, v_chore.token_reward);
 
       insert into token_transactions (child_id, type, amount, reference_id, description)
-      values (auth.uid(), 'chore_completed', v_chore.token_reward, v_chore.id,
-              'Completed: ' || v_chore.name);
+      values (p_child_id, 'chore_completed', v_chore.token_reward, v_chore.id,
+              'Completed: ' || v_chore.name
+                || case when p_by_parent then ' (marked by parent)' else '' end);
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public._complete_chore(uuid, uuid, boolean)
+      from public, anon, authenticated;
+
+    -- Children complete their own chores
+    create or replace function public.complete_chore(p_chore_id uuid)
+    returns void as $$
+    begin
+      if not is_child() then
+        raise exception 'Only children can complete chores';
+      end if;
+      perform public._complete_chore(auth.uid(), p_chore_id, false);
     end;
     $$ language plpgsql security definer set search_path = public;
 
     revoke execute on function public.complete_chore(uuid) from public, anon;
     grant execute on function public.complete_chore(uuid) to authenticated;
+
+    -- Parents complete a chore on a child's behalf
+    create or replace function public.complete_chore_for_child(p_child_id uuid, p_chore_id uuid)
+    returns void as $$
+    begin
+      if not is_parent() then
+        raise exception 'Only parents can do this';
+      end if;
+      if not exists (select 1 from profiles where id = p_child_id and role = 'child') then
+        raise exception 'Child not found';
+      end if;
+      perform public._complete_chore(p_child_id, p_chore_id, true);
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.complete_chore_for_child(uuid, uuid) from public, anon;
+    grant execute on function public.complete_chore_for_child(uuid, uuid) to authenticated;
 
     -- Ids of one-time chores already completed by anyone (children can't read other
     -- children's completions directly, so this lets the app hide them).

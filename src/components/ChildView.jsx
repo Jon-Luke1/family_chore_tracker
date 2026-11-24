@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function ChildView({ displayName, onLogout }) {
+// Shown to a child on their own device. When `childId` is given, a signed-in parent
+// is viewing the page on that child's behalf (and `onExit` returns to the dashboard).
+export default function ChildView({ displayName, onLogout, childId, onExit }) {
+  const actingAsParent = Boolean(childId)
   const [user, setUser] = useState(null)
   const [chores, setChores] = useState([])
   const [rewards, setRewards] = useState([])
@@ -12,12 +15,17 @@ export default function ChildView({ displayName, onLogout }) {
   const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
 
   useEffect(() => {
+    if (childId) {
+      setUser({ id: childId })
+      loadAll(childId)
+      return
+    }
     // Get current user
     supabase.auth.getUser().then(({ data }) => {
       setUser(data?.user)
       if (data?.user) loadAll(data.user.id)
     })
-  }, [])
+  }, [childId])
 
   const loadAll = async (userId) => {
     // Load balance
@@ -53,7 +61,9 @@ export default function ChildView({ displayName, onLogout }) {
   const completeChore = async (chore) => {
     if (!user) return
 
-    const { error } = await supabase.rpc('complete_chore', { p_chore_id: chore.id })
+    const { error } = actingAsParent
+      ? await supabase.rpc('complete_chore_for_child', { p_child_id: childId, p_chore_id: chore.id })
+      : await supabase.rpc('complete_chore', { p_chore_id: chore.id })
     if (error) {
       alert('Could not complete chore: ' + error.message)
       return
@@ -71,16 +81,25 @@ export default function ChildView({ displayName, onLogout }) {
             <span className="text-xl">👋</span>
             <span className="font-bold text-gray-800">{displayName}</span>
           </div>
-          <button
-            onClick={() => {
-              if (window.confirm('Sign out of this device? A parent will need to sign in again to set it up.')) onLogout()
-            }}
-            className="text-sm text-gray-500"
-          >
-            Sign out
-          </button>
+          {actingAsParent ? (
+            <button onClick={onExit} className="text-sm text-gray-500">← Back to dashboard</button>
+          ) : (
+            <button
+              onClick={() => {
+                if (window.confirm('Sign out of this device? A parent will need to sign in again to set it up.')) onLogout()
+              }}
+              className="text-sm text-gray-500"
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </nav>
+      {actingAsParent && (
+        <div className="bg-amber-100 text-amber-800 text-sm text-center py-2 px-4">
+          Parent mode: completing chores for {displayName}
+        </div>
+      )}
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Token balance card */}

@@ -13,12 +13,14 @@ const VIEWS = {
   CHILD_SELECT: 'child_select',
   PARENT_DASHBOARD: 'parent_dashboard',
   CHILD_VIEW: 'child_view',
+  CHILD_AS_PARENT: 'child_as_parent',
 }
 
 function App() {
   const [view, setView] = useState(VIEWS.LANDING)
   const [parentName, setParentName] = useState(null)
   const [childName, setChildName] = useState(null)
+  const [viewingChild, setViewingChild] = useState(null) // child a parent is viewing
   const [loading, setLoading] = useState(true)
   const [authCheckInProgress, setAuthCheckInProgress] = useState(false)
 
@@ -43,7 +45,8 @@ function App() {
         console.log('Found profile:', profile.role, profile.display_name)
         if (profile.role === 'parent') {
           setParentName(profile.display_name)
-          setView(VIEWS.PARENT_DASHBOARD)
+          // Don't pull a parent out of a child's page on a background auth refresh
+          setView(v => (v === VIEWS.CHILD_AS_PARENT ? v : VIEWS.PARENT_DASHBOARD))
         } else {
           setChildName(profile.display_name)
           setView(VIEWS.CHILD_VIEW)
@@ -175,7 +178,24 @@ function App() {
       )
 
     case VIEWS.PARENT_DASHBOARD:
-      return <ParentDashboard name={parentName} onLogout={handleLogout} onBack={() => setView(VIEWS.LANDING)} />
+      return <ParentDashboard
+          name={parentName}
+          onLogout={handleLogout}
+          onBack={() => setView(VIEWS.LANDING)}
+          onViewChild={(child) => {
+            setViewingChild({ id: child.id, name: child.display_name })
+            setView(VIEWS.CHILD_AS_PARENT)
+          }}
+        />
+
+    case VIEWS.CHILD_AS_PARENT:
+      return (
+        <ChildView
+          childId={viewingChild?.id}
+          displayName={viewingChild?.name}
+          onExit={() => setView(VIEWS.PARENT_DASHBOARD)}
+        />
+      )
 
     case VIEWS.CHILD_VIEW:
       return <ChildView displayName={childName} onLogout={handleLogout} />
