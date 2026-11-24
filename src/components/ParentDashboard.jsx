@@ -8,6 +8,7 @@ function ChoresTab() {
   const [showForm, setShowForm] = useState(false)
   const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' })
   const [addError, setAddError] = useState('')
+  const [editingId, setEditingId] = useState(null) // chore being edited, or null when adding
 
   useEffect(() => {
     loadChores()
@@ -24,26 +25,49 @@ function ChoresTab() {
     setChildren(data || [])
   }
 
-  const addChore = async (e) => {
+  const emptyChore = { name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' }
+
+  const closeForm = () => {
+    setNewChore(emptyChore)
+    setEditingId(null)
+    setShowForm(false)
+    setAddError('')
+  }
+
+  const startEdit = (chore) => {
+    setNewChore({
+      name: chore.name,
+      description: chore.description || '',
+      token_reward: chore.token_reward,
+      frequency: chore.frequency,
+      assigned_to: chore.assigned_to || '',
+    })
+    setEditingId(chore.id)
+    setAddError('')
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const saveChore = async (e) => {
     e.preventDefault()
     setAddError('')
-    
+
     const choreData = {
       ...newChore,
-      is_active: true,
       assigned_to: newChore.assigned_to || null,
     }
-    
-    const { error } = await supabase.from('chores').insert([choreData])
-    
+
+    const { error } = editingId
+      ? await supabase.from('chores').update(choreData).eq('id', editingId)
+      : await supabase.from('chores').insert([{ ...choreData, is_active: true }])
+
     if (error) {
-      console.error('Add chore error:', error)
-      setAddError('Failed to add chore: ' + error.message)
+      console.error('Save chore error:', error)
+      setAddError(`Failed to ${editingId ? 'update' : 'add'} chore: ` + error.message)
       return
     }
-    
-    setNewChore({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' })
-    setShowForm(false)
+
+    closeForm()
     loadChores()
   }
 
@@ -66,13 +90,13 @@ function ChoresTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Chores</h3>
-        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
+        <button onClick={() => { setNewChore(emptyChore); setEditingId(null); setShowForm(true) }} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
           + Add Chore
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={addChore} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
+        <form onSubmit={saveChore} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
           {addError && <div className="bg-red-50 text-red-600 p-2 rounded-lg text-sm">{addError}</div>}
           
           <input
@@ -128,8 +152,8 @@ function ChoresTab() {
             </select>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">Add Chore</button>
-            <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">{editingId ? 'Save Changes' : 'Add Chore'}</button>
+            <button type="button" onClick={closeForm} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
       )}
@@ -157,6 +181,9 @@ function ChoresTab() {
                 <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-sage-100 text-sage-700' : 'bg-gray-200 text-gray-600'}`}>
                   {chore.is_active ? 'Active' : 'Inactive'}
                 </button>
+                <button onClick={() => startEdit(chore)} className="px-3 py-1 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                  Edit
+                </button>
                 <button onClick={() => deleteChore(chore)} className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100">
                   Delete
                 </button>
@@ -175,6 +202,7 @@ function RewardsTab() {
   const [showForm, setShowForm] = useState(false)
   const [newReward, setNewReward] = useState({ name: '', description: '', token_cost: 50 })
   const [addError, setAddError] = useState('')
+  const [editingId, setEditingId] = useState(null) // reward being edited, or null when adding
 
   useEffect(() => { loadRewards() }, [])
 
@@ -183,20 +211,42 @@ function RewardsTab() {
     setRewards(data || [])
   }
 
-  const addReward = async (e) => {
+  const emptyReward = { name: '', description: '', token_cost: 50 }
+
+  const closeForm = () => {
+    setNewReward(emptyReward)
+    setEditingId(null)
+    setShowForm(false)
+    setAddError('')
+  }
+
+  const startEdit = (reward) => {
+    setNewReward({
+      name: reward.name,
+      description: reward.description || '',
+      token_cost: reward.token_cost,
+    })
+    setEditingId(reward.id)
+    setAddError('')
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const saveReward = async (e) => {
     e.preventDefault()
     setAddError('')
-    
-    const { error } = await supabase.from('rewards').insert([{ ...newReward, is_available: true }])
-    
+
+    const { error } = editingId
+      ? await supabase.from('rewards').update(newReward).eq('id', editingId)
+      : await supabase.from('rewards').insert([{ ...newReward, is_available: true }])
+
     if (error) {
-      console.error('Add reward error:', error)
-      setAddError('Failed to add reward: ' + error.message)
+      console.error('Save reward error:', error)
+      setAddError(`Failed to ${editingId ? 'update' : 'add'} reward: ` + error.message)
       return
     }
-    
-    setNewReward({ name: '', description: '', token_cost: 50 })
-    setShowForm(false)
+
+    closeForm()
     loadRewards()
   }
 
@@ -209,13 +259,13 @@ function RewardsTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Rewards</h3>
-        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
+        <button onClick={() => { setNewReward(emptyReward); setEditingId(null); setShowForm(true) }} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
           + Add Reward
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={addReward} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
+        <form onSubmit={saveReward} className="bg-gray-50 p-4 rounded-xl mb-4 space-y-3">
           {addError && <div className="bg-red-50 text-red-600 p-2 rounded-lg text-sm">{addError}</div>}
           
           <input
@@ -244,8 +294,8 @@ function RewardsTab() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">Add Reward</button>
-            <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">{editingId ? 'Save Changes' : 'Add Reward'}</button>
+            <button type="button" onClick={closeForm} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
       )}
@@ -259,9 +309,14 @@ function RewardsTab() {
                 {reward.description && <p className="text-sm text-gray-500 mt-1">{reward.description}</p>}
                 <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full mt-2 inline-block">{reward.token_cost} tokens</span>
               </div>
-              <button onClick={() => toggleAvailable(reward)} className={`px-3 py-1 rounded-lg text-sm ${reward.is_available ? 'bg-sage-100 text-sage-700' : 'bg-gray-200 text-gray-600'}`}>
-                {reward.is_available ? 'Available' : 'Hidden'}
-              </button>
+              <div className="flex flex-col gap-2 items-end">
+                <button onClick={() => toggleAvailable(reward)} className={`px-3 py-1 rounded-lg text-sm ${reward.is_available ? 'bg-sage-100 text-sage-700' : 'bg-gray-200 text-gray-600'}`}>
+                  {reward.is_available ? 'Available' : 'Hidden'}
+                </button>
+                <button onClick={() => startEdit(reward)} className="px-3 py-1 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
+                  Edit
+                </button>
+              </div>
             </div>
           </div>
         ))}
