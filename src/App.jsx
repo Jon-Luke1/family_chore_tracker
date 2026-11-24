@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import LandingPage from './components/LandingPage'
 import ParentLogin from './components/ParentLogin'
-import ChildSelect from './components/ChildSelect'
+import ChildLogin from './components/ChildLogin'
 import ParentDashboard from './components/ParentDashboard'
 import ChildView from './components/ChildView'
 import './App.css'
@@ -88,8 +88,8 @@ function App() {
     }
   }, [])
 
-  // If this device is already signed in as a parent, skip the login screen
-  const handleSelectParent = async () => {
+  // If this device already has a session for the chosen role, skip the login screen
+  const resumeSession = async (role, fallbackView) => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
       const { data: profile } = await supabase
@@ -97,14 +97,22 @@ function App() {
         .select('role, display_name')
         .eq('id', session.user.id)
         .single()
-      if (profile?.role === 'parent') {
-        setParentName(profile.display_name)
-        setView(VIEWS.PARENT_DASHBOARD)
+      if (profile?.role === role) {
+        if (role === 'parent') {
+          setParentName(profile.display_name)
+          setView(VIEWS.PARENT_DASHBOARD)
+        } else {
+          setChildName(profile.display_name)
+          setView(VIEWS.CHILD_VIEW)
+        }
         return
       }
     }
-    setView(VIEWS.PARENT_LOGIN)
+    setView(fallbackView)
   }
+
+  const handleSelectParent = () => resumeSession('parent', VIEWS.PARENT_LOGIN)
+  const handleSelectChild = () => resumeSession('child', VIEWS.CHILD_SELECT)
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -126,7 +134,7 @@ function App() {
       return (
         <LandingPage
           onSelectParent={handleSelectParent}
-          onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
+          onSelectChild={handleSelectChild}
         />
       )
 
@@ -157,7 +165,7 @@ function App() {
           >
             ← Back
           </button>
-          <ChildSelect
+          <ChildLogin
             onLogin={(name) => {
               setChildName(name)
               setView(VIEWS.CHILD_VIEW)
@@ -175,7 +183,7 @@ function App() {
     default:
       return <LandingPage
         onSelectParent={handleSelectParent}
-        onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
+        onSelectChild={handleSelectChild}
       />
   }
 }

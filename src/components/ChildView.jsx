@@ -71,7 +71,14 @@ export default function ChildView({ displayName, onLogout }) {
             <span className="text-xl">👋</span>
             <span className="font-bold text-gray-800">{displayName}</span>
           </div>
-          <button onClick={onLogout} className="text-sm text-gray-500">Switch</button>
+          <button
+            onClick={() => {
+              if (window.confirm('Sign out of this device? A parent will need to sign in again to set it up.')) onLogout()
+            }}
+            className="text-sm text-gray-500"
+          >
+            Sign out
+          </button>
         </div>
       </nav>
 
