@@ -13,7 +13,7 @@ export default function ChildSelect({ onLogin }) {
 
   useEffect(() => {
     setChildren([
-      { id: 'ed1c7239-a48e-41b8-a590-3e4fbbf0c8d0', display_name: 'Elliott', color: 'bg-pink-500', emoji: '🌸' },
+      { id: '944fa2fc-eb1f-4f5f-90bb-f843d61448dc', display_name: 'Elliott', color: 'bg-pink-500', emoji: '🌸' },
       { id: '14f81c44-4438-4d79-be57-5362f517fa6a', display_name: 'Emerson', color: 'bg-blue-500', emoji: '⭐' },
     ])
   }, [])
