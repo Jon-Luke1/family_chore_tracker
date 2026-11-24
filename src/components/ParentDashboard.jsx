@@ -271,8 +271,67 @@ function RewardsTab() {
   )
 }
 
+function ChildHistory({ child }) {
+  const [rows, setRows] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const { data, error: err } = await supabase
+        .from('token_transactions')
+        .select('id, type, amount, description, created_at')
+        .eq('child_id', child.id)
+        .order('created_at', { ascending: false })
+        .limit(25)
+      if (cancelled) return
+      if (err) {
+        setError(err.message)
+        return
+      }
+      // Work backwards from the current balance: newest entry ends at the
+      // current balance, and each entry's "before" is the next-newer "after".
+      let after = child.balance
+      setRows((data || []).map(t => {
+        const row = { ...t, after, before: after - t.amount }
+        after = row.before
+        return row
+      }))
+    }
+    load()
+    return () => { cancelled = true }
+  }, [child.id, child.balance])
+
+  if (error) return <p className="text-sm text-red-600 mt-3">Failed to load history: {error}</p>
+  if (!rows) return <p className="text-sm text-gray-400 mt-3">Loading history...</p>
+  if (rows.length === 0) return <p className="text-sm text-gray-400 mt-3">No activity yet.</p>
+
+  return (
+    <div className="mt-3 pt-3 border-t space-y-2">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Recent activity</p>
+      {rows.map(t => (
+        <div key={t.id} className="flex justify-between items-start gap-3 text-sm">
+          <div className="min-w-0">
+            <div className="text-gray-800 truncate">{t.description || t.type}</div>
+            <div className="text-xs text-gray-400">
+              {new Date(t.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className={`font-semibold ${t.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {t.amount >= 0 ? '+' : ''}{t.amount}
+            </div>
+            <div className="text-xs text-gray-500">{t.before} → {t.after}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ChildrenTab() {
   const [children, setChildren] = useState([])
+  const [selectedId, setSelectedId] = useState(null)
 
   useEffect(() => {
     loadChildren()
@@ -293,14 +352,21 @@ function ChildrenTab() {
       <h3 className="text-lg font-semibold text-gray-800 mb-4">Children</h3>
       <div className="space-y-3">
         {children.map(child => (
-          <div key={child.id} className="bg-white p-4 rounded-xl border flex justify-between items-center">
-            <div>
-              <h4 className="font-medium text-gray-800">{child.display_name}</h4>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-yellow-500">{child.balance}</div>
-              <div className="text-xs text-gray-500">tokens</div>
-            </div>
+          <div key={child.id} className="bg-white p-4 rounded-xl border">
+            <button
+              onClick={() => setSelectedId(selectedId === child.id ? null : child.id)}
+              className="w-full flex justify-between items-center text-left"
+            >
+              <div>
+                <h4 className="font-medium text-gray-800">{child.display_name}</h4>
+                <span className="text-xs text-gray-400">{selectedId === child.id ? '▲ Hide history' : '▼ View history'}</span>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-yellow-500">{child.balance}</div>
+                <div className="text-xs text-gray-500">tokens</div>
+              </div>
+            </button>
+            {selectedId === child.id && <ChildHistory child={child} />}
           </div>
         ))}
         {children.length === 0 && <p className="text-center text-gray-400 py-8">No children set up yet</p>}
