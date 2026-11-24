@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase'
 import LandingPage from './components/LandingPage'
 import ParentLogin from './components/ParentLogin'
 import ChildLogin from './components/ChildLogin'
+import ChildPicker from './components/ChildPicker'
 import ParentDashboard from './components/ParentDashboard'
 import ChildView from './components/ChildView'
 import './App.css'
@@ -14,6 +15,7 @@ const VIEWS = {
   PARENT_DASHBOARD: 'parent_dashboard',
   CHILD_VIEW: 'child_view',
   CHILD_AS_PARENT: 'child_as_parent',
+  CHILD_PICK: 'child_pick',
 }
 
 function App() {
@@ -100,6 +102,12 @@ function App() {
         .select('role, display_name')
         .eq('id', session.user.id)
         .single()
+      // A signed-in parent tapping "Child" picks which child's page to open
+      if (role === 'child' && profile?.role === 'parent') {
+        setParentName(profile.display_name)
+        setView(VIEWS.CHILD_PICK)
+        return
+      }
       if (profile?.role === role) {
         if (role === 'parent') {
           setParentName(profile.display_name)
@@ -187,6 +195,24 @@ function App() {
             setView(VIEWS.CHILD_AS_PARENT)
           }}
         />
+
+    case VIEWS.CHILD_PICK:
+      return (
+        <div className="relative">
+          <button
+            onClick={() => setView(VIEWS.LANDING)}
+            className="absolute top-4 left-4 z-10 px-3 py-2 bg-white rounded-lg shadow text-sm text-gray-600 hover:text-gray-800"
+          >
+            ← Back
+          </button>
+          <ChildPicker
+            onPick={(child) => {
+              setViewingChild({ id: child.id, name: child.display_name })
+              setView(VIEWS.CHILD_AS_PARENT)
+            }}
+          />
+        </div>
+      )
 
     case VIEWS.CHILD_AS_PARENT:
       return (
