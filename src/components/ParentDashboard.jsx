@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import RefreshButton from './RefreshButton'
 
 // Tab components
 function ChoresTab() {
@@ -515,7 +516,10 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
             <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700">← Back</button>
             <h1 className="text-xl font-bold text-forest-800">Parent Dashboard</h1>
           </div>
-          <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
+          <div className="flex items-center gap-4">
+            <RefreshButton />
+            <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
+          </div>
         </div>
       </nav>
 

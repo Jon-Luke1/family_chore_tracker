@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import RefreshButton from './RefreshButton'
 
 // Shown to a child on their own device. When `childId` is given, a signed-in parent
 // is viewing the page on that child's behalf (and `onExit` returns to the dashboard).
@@ -81,18 +82,21 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
             <span className="text-xl">👋</span>
             <span className="font-bold text-gray-800">{displayName}</span>
           </div>
-          {actingAsParent ? (
-            <button onClick={onExit} className="text-sm text-gray-500">← Back to dashboard</button>
-          ) : (
-            <button
-              onClick={() => {
-                if (window.confirm('Sign out of this device? A parent will need to sign in again to set it up.')) onLogout()
-              }}
-              className="text-sm text-gray-500"
-            >
-              Sign out
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            <RefreshButton />
+            {actingAsParent ? (
+              <button onClick={onExit} className="text-sm text-gray-500">← Back to dashboard</button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (window.confirm('Sign out of this device? A parent will need to sign in again to set it up.')) onLogout()
+                }}
+                className="text-sm text-gray-500"
+              >
+                Sign out
+              </button>
+            )}
+          </div>
         </div>
       </nav>
       {actingAsParent && (
