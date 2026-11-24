@@ -29,7 +29,7 @@ export default function ParentLogin({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-cream flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">👨‍👩‍👧‍👦</div>
@@ -48,7 +48,7 @@ export default function ParentLogin({ onLogin }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-sage-500 focus:border-transparent"
               placeholder="parent@email.com"
               required
               autoComplete="email"
@@ -61,7 +61,7 @@ export default function ParentLogin({ onLogin }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-sage-500 focus:border-transparent"
               placeholder="••••••••"
               required
               autoComplete="current-password"
@@ -71,7 +71,7 @@ export default function ParentLogin({ onLogin }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            className="w-full py-3 bg-sage-600 text-white rounded-full font-semibold tracking-wide hover:bg-sage-700 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
