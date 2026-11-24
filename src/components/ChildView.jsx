@@ -7,6 +7,7 @@ export default function ChildView({ displayName, onLogout }) {
   const [rewards, setRewards] = useState([])
   const [balance, setBalance] = useState(0)
   const [completedToday, setCompletedToday] = useState(0)
+  const [doneTodayIds, setDoneTodayIds] = useState(new Set())
 
   useEffect(() => {
     // Get current user
@@ -29,34 +30,26 @@ export default function ChildView({ displayName, onLogout }) {
     const { data: rewardsData } = await supabase.from('rewards').select('*').eq('is_available', true)
     setRewards(rewardsData || [])
 
-    // Count completed today
-    const today = new Date().toISOString().split('T')[0]
+    // Completed today (local midnight onward)
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
     const { data: todayTasks } = await supabase
       .from('completed_tasks')
-      .select('*')
+      .select('chore_id')
       .eq('child_id', userId)
-      .gte('completed_at', `${today}T00:00:00`)
+      .gte('completed_at', startOfToday.toISOString())
     setCompletedToday(todayTasks?.length || 0)
+    setDoneTodayIds(new Set((todayTasks || []).map(t => t.chore_id)))
   }
 
   const completeChore = async (chore) => {
     if (!user) return
 
-    // Record completion
-    await supabase.from('completed_tasks').insert([{
-      child_id: user.id,
-      chore_id: chore.id,
-      tokens_earned: chore.token_reward,
-    }])
-
-    // Record token transaction (this triggers the balance update via trigger)
-    await supabase.from('token_transactions').insert([{
-      child_id: user.id,
-      type: 'chore_completed',
-      amount: chore.token_reward,
-      reference_id: chore.id,
-      description: `Completed: ${chore.name}`,
-    }])
+    const { error } = await supabase.rpc('complete_chore', { p_chore_id: chore.id })
+    if (error) {
+      alert('Could not complete chore: ' + error.message)
+      return
+    }
 
     await loadAll(user.id)
   }
@@ -101,12 +94,18 @@ export default function ChildView({ displayName, onLogout }) {
                     {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
                     <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
                   </div>
-                  <button
-                    onClick={() => completeChore(chore)}
-                    className="ml-4 px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 active:scale-95 transition-all"
-                  >
-                    Done ✓
-                  </button>
+                  {chore.frequency === 'daily' && doneTodayIds.has(chore.id) ? (
+                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
+                      Done today ✓
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => completeChore(chore)}
+                      className="ml-4 px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 active:scale-95 transition-all"
+                    >
+                      Done ✓
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

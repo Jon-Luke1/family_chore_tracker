@@ -120,3 +120,68 @@ alter table completed_tasks drop constraint if exists completed_tasks_chore_id_f
 alter table completed_tasks
   add constraint completed_tasks_chore_id_fkey
   foreign key (chore_id) references chores(id) on delete set null;
+
+-- ============================================
+-- Child chore completion
+-- ============================================
+
+-- Used by the app (null = up for grabs); no-op if it already exists
+alter table chores add column if not exists assigned_to uuid references profiles on delete set null;
+
+-- Create the balance row on first earn instead of silently updating nothing
+create or replace function public.update_child_balance()
+returns trigger as $$
+begin
+  insert into public.child_balances (child_id, balance, updated_at)
+  values (new.child_id, new.amount, now())
+  on conflict (child_id) do update
+    set balance = public.child_balances.balance + new.amount,
+        updated_at = now();
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+-- Children complete chores through this function only. It takes the reward from
+-- the chore itself, so a child can't award themselves arbitrary tokens.
+create or replace function public.complete_chore(p_chore_id uuid)
+returns void as $$
+declare
+  v_chore chores%rowtype;
+begin
+  if not is_child() then
+    raise exception 'Only children can complete chores';
+  end if;
+
+  -- Lock the chore row so rapid double-taps are processed one at a time
+  select * into v_chore from chores
+  where id = p_chore_id
+    and is_active = true
+    and (assigned_to is null or assigned_to = auth.uid())
+  for update;
+
+  if not found then
+    raise exception 'Chore not available';
+  end if;
+
+  -- Daily chores: once per child per calendar day (family timezone)
+  if v_chore.frequency = 'daily' and exists (
+    select 1 from completed_tasks
+    where child_id = auth.uid()
+      and chore_id = v_chore.id
+      and completed_at >= date_trunc('day', now() at time zone 'America/New_York')
+                          at time zone 'America/New_York'
+  ) then
+    raise exception 'Already completed today';
+  end if;
+
+  insert into completed_tasks (child_id, chore_id, tokens_earned)
+  values (auth.uid(), v_chore.id, v_chore.token_reward);
+
+  insert into token_transactions (child_id, type, amount, reference_id, description)
+  values (auth.uid(), 'chore_completed', v_chore.token_reward, v_chore.id,
+          'Completed: ' || v_chore.name);
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke execute on function public.complete_chore(uuid) from public, anon;
+grant execute on function public.complete_chore(uuid) to authenticated;

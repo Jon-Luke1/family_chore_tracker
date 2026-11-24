@@ -26,6 +26,7 @@ create table chores (
   token_reward int not null default 10,
   frequency text default 'once' check (frequency in ('once', 'daily', 'weekly')),
   is_active boolean default true,
+  assigned_to uuid, -- null = up for grabs; FK added after profiles exists
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
