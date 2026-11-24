@@ -271,6 +271,68 @@ function RewardsTab() {
   )
 }
 
+function BalanceOverride({ child, onSaved }) {
+  const [value, setValue] = useState(String(child.balance))
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setValue(String(child.balance)) }, [child.balance])
+
+  const save = async (e) => {
+    e.preventDefault()
+    const newBalance = parseInt(value, 10)
+    if (Number.isNaN(newBalance) || newBalance < 0) {
+      alert('Enter a balance of 0 or more')
+      return
+    }
+    if (newBalance === child.balance) return
+    if (!window.confirm(`Set ${child.display_name}'s balance from ${child.balance} to ${newBalance}?`)) return
+    setSaving(true)
+    const { error } = await supabase.rpc('set_child_balance', {
+      p_child_id: child.id,
+      p_new_balance: newBalance,
+      p_note: note || null,
+    })
+    setSaving(false)
+    if (error) {
+      alert('Failed to update balance: ' + error.message)
+      return
+    }
+    setNote('')
+    onSaved()
+  }
+
+  return (
+    <form onSubmit={save} className="mt-3 pt-3 border-t space-y-2">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Override balance</p>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+          required
+        />
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Reason (optional)"
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg"
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+        >
+          {saving ? '...' : 'Set'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function ChildHistory({ child }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
@@ -366,7 +428,12 @@ function ChildrenTab() {
                 <div className="text-xs text-gray-500">tokens</div>
               </div>
             </button>
-            {selectedId === child.id && <ChildHistory child={child} />}
+            {selectedId === child.id && (
+              <>
+                <BalanceOverride child={child} onSaved={loadChildren} />
+                <ChildHistory child={child} />
+              </>
+            )}
           </div>
         ))}
         {children.length === 0 && <p className="text-center text-gray-400 py-8">No children set up yet</p>}

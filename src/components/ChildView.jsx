@@ -8,6 +8,8 @@ export default function ChildView({ displayName, onLogout }) {
   const [balance, setBalance] = useState(0)
   const [completedToday, setCompletedToday] = useState(0)
   const [doneTodayIds, setDoneTodayIds] = useState(new Set())
+  const [onceDoneIds, setOnceDoneIds] = useState(new Set()) // one-time chores completed by anyone
+  const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
 
   useEffect(() => {
     // Get current user
@@ -40,6 +42,12 @@ export default function ChildView({ displayName, onLogout }) {
       .gte('completed_at', startOfToday.toISOString())
     setCompletedToday(todayTasks?.length || 0)
     setDoneTodayIds(new Set((todayTasks || []).map(t => t.chore_id)))
+
+    // One-time chores: done by anyone (RPC) and done by me (all time)
+    const { data: onceDone } = await supabase.rpc('completed_once_chore_ids')
+    setOnceDoneIds(new Set(onceDone || []))
+    const { data: mine } = await supabase.from('completed_tasks').select('chore_id').eq('child_id', userId)
+    setMyDoneIds(new Set((mine || []).map(t => t.chore_id)))
   }
 
   const completeChore = async (chore) => {
@@ -86,7 +94,7 @@ export default function ChildView({ displayName, onLogout }) {
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
           <div className="space-y-3">
-            {chores.map(chore => (
+            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id) && !myDoneIds.has(chore.id))).map(chore => (
               <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
                 <div className="flex justify-between items-center">
                   <div className="flex-1">
@@ -94,9 +102,10 @@ export default function ChildView({ displayName, onLogout }) {
                     {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
                     <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
                   </div>
-                  {chore.frequency === 'daily' && doneTodayIds.has(chore.id) ? (
+                  {(chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
+                   (chore.frequency === 'once' && onceDoneIds.has(chore.id)) ? (
                     <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
-                      Done today ✓
+                      {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
                     </span>
                   ) : (
                     <button
