@@ -66,7 +66,7 @@ function ChoresTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Chores</h3>
-        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
           + Add Chore
         </button>
       </div>
@@ -128,7 +128,7 @@ function ChoresTab() {
             </select>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-semibold">Add Chore</button>
+            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">Add Chore</button>
             <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
@@ -142,19 +142,19 @@ function ChoresTab() {
                 <h4 className="font-medium text-gray-800">{chore.name}</h4>
                 {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
                 <div className="flex gap-2 mt-2 flex-wrap">
-                  <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">{chore.token_reward} tokens</span>
-                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">{chore.frequency}</span>
+                  <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full">{chore.token_reward} tokens</span>
+                  <span className="text-xs px-2 py-1 bg-sage-100 text-sage-700 rounded-full">{chore.frequency}</span>
                   {chore.assigned_to ? (
-                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">
                       Assigned: {children.find(c => c.id === chore.assigned_to)?.display_name || 'Unknown'}
                     </span>
                   ) : (
-                    <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">👆 Up for grabs</span>
+                    <span className="text-xs px-2 py-1 bg-sage-100 text-sage-700 rounded-full">👆 Up for grabs</span>
                   )}
                 </div>
               </div>
               <div className="flex flex-col gap-2 items-end">
-                <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-sage-100 text-sage-700' : 'bg-gray-200 text-gray-600'}`}>
                   {chore.is_active ? 'Active' : 'Inactive'}
                 </button>
                 <button onClick={() => deleteChore(chore)} className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100">
@@ -209,7 +209,7 @@ function RewardsTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-800">Rewards</h3>
-        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+        <button onClick={() => setShowForm(true)} className="px-3 py-1.5 bg-sage-600 text-white rounded-lg text-sm hover:bg-sage-700">
           + Add Reward
         </button>
       </div>
@@ -244,7 +244,7 @@ function RewardsTab() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-semibold">Add Reward</button>
+            <button type="submit" className="flex-1 py-2 bg-sage-600 text-white rounded-lg font-semibold">Add Reward</button>
             <button type="button" onClick={() => { setShowForm(false); setAddError('') }} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
           </div>
         </form>
@@ -257,9 +257,9 @@ function RewardsTab() {
               <div>
                 <h4 className="font-medium text-gray-800">{reward.name}</h4>
                 {reward.description && <p className="text-sm text-gray-500 mt-1">{reward.description}</p>}
-                <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full mt-2 inline-block">{reward.token_cost} tokens</span>
+                <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full mt-2 inline-block">{reward.token_cost} tokens</span>
               </div>
-              <button onClick={() => toggleAvailable(reward)} className={`px-3 py-1 rounded-lg text-sm ${reward.is_available ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+              <button onClick={() => toggleAvailable(reward)} className={`px-3 py-1 rounded-lg text-sm ${reward.is_available ? 'bg-sage-100 text-sage-700' : 'bg-gray-200 text-gray-600'}`}>
                 {reward.is_available ? 'Available' : 'Hidden'}
               </button>
             </div>
@@ -324,7 +324,7 @@ function BalanceOverride({ child, onSaved }) {
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+          className="px-4 py-2 bg-sage-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
         >
           {saving ? '...' : 'Set'}
         </button>
@@ -380,7 +380,7 @@ function ChildHistory({ child }) {
             </div>
           </div>
           <div className="text-right shrink-0">
-            <div className={`font-semibold ${t.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            <div className={`font-semibold ${t.amount >= 0 ? 'text-sage-700' : 'text-red-500'}`}>
               {t.amount >= 0 ? '+' : ''}{t.amount}
             </div>
             <div className="text-xs text-gray-500">{t.before} → {t.after}</div>
@@ -424,7 +424,7 @@ function ChildrenTab({ onViewChild }) {
                 <span className="text-xs text-gray-400">{selectedId === child.id ? '▲ Hide history' : '▼ View history'}</span>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-yellow-500">{child.balance}</div>
+                <div className="text-2xl font-bold text-tan-600">{child.balance}</div>
                 <div className="text-xs text-gray-500">tokens</div>
               </div>
             </button>
@@ -432,7 +432,7 @@ function ChildrenTab({ onViewChild }) {
               <>
                 <button
                   onClick={() => onViewChild(child)}
-                  className="mt-3 w-full py-2 bg-emerald-500 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600"
+                  className="mt-3 w-full py-2 bg-forest-800 text-white rounded-lg text-sm font-semibold hover:bg-forest-700"
                 >
                   Open {child.display_name}'s page (complete chores for them)
                 </button>
@@ -453,19 +453,19 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
   const [tab, setTab] = useState('chores')
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-cream">
       <nav className="bg-white shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700">← Back</button>
-            <h1 className="text-xl font-bold text-indigo-600">Parent Dashboard</h1>
+            <h1 className="text-xl font-bold text-forest-800">Parent Dashboard</h1>
           </div>
           <button onClick={onLogout} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
         </div>
       </nav>
 
       <main className="max-w-lg mx-auto px-4 py-6">
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-sm border border-forest-100 overflow-hidden">
           <div className="flex border-b">
             {[
               { key: 'chores', label: 'Chores', icon: '🧹' },
@@ -476,7 +476,7 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
                 key={t.key}
                 onClick={() => setTab(t.key)}
                 className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  tab === t.key ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700'
+                  tab === t.key ? 'text-forest-800 border-b-2 border-sun-500 bg-sage-50' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <span className="mr-1">{t.icon}</span> {t.label}

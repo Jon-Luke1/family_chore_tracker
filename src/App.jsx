@@ -6,7 +6,6 @@ import ChildLogin from './components/ChildLogin'
 import ChildPicker from './components/ChildPicker'
 import ParentDashboard from './components/ParentDashboard'
 import ChildView from './components/ChildView'
-import './App.css'
 
 const VIEWS = {
   LANDING: 'landing',
@@ -134,8 +133,8 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-xl font-semibold text-indigo-600">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-cream">
+        <div className="text-xl font-semibold text-forest-800">Loading...</div>
       </div>
     )
   }

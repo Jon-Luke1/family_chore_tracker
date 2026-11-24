@@ -73,7 +73,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100">
+    <div className="min-h-screen bg-cream">
       {/* Header with balance */}
       <nav className="bg-white shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
@@ -96,22 +96,25 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
         </div>
       </nav>
       {actingAsParent && (
-        <div className="bg-amber-100 text-amber-800 text-sm text-center py-2 px-4">
+        <div className="bg-sun-100 text-sun-800 text-sm text-center py-2 px-4">
           Parent mode: completing chores for {displayName}
         </div>
       )}
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Token balance card */}
-        <div className="bg-white rounded-2xl shadow-sm border p-5">
+        <div className="bg-forest-800 rounded-3xl shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Your Tokens</p>
-              <p className="text-4xl font-bold text-yellow-500 mt-1">{balance}</p>
+              <p className="text-sm text-sage-300">Your Tokens</p>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="w-9 h-9 rounded-full bg-sun-500 flex items-center justify-center text-lg text-white">★</span>
+                <p className="text-4xl font-bold text-sun-500 font-serif">{balance}</p>
+              </div>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-500">Done Today</p>
-              <p className="text-2xl font-bold text-green-500 mt-1">{completedToday}</p>
+              <p className="text-sm text-sage-300">Done Today</p>
+              <p className="text-3xl font-bold text-white font-serif mt-1">{completedToday}</p>
             </div>
           </div>
         </div>
@@ -126,7 +129,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-800">{chore.name}</h4>
                     {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
-                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
+                    <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
                   </div>
                   {(chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
                    (chore.frequency === 'once' && onceDoneIds.has(chore.id)) ? (
@@ -136,7 +139,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                   ) : (
                     <button
                       onClick={() => completeChore(chore)}
-                      className="ml-4 px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 active:scale-95 transition-all"
+                      className="ml-4 px-5 py-2 bg-sage-600 text-white rounded-full text-sm font-semibold tracking-wide hover:bg-sage-700 active:scale-95 transition-all"
                     >
                       Done ✓
                     </button>
@@ -158,11 +161,11 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-800">{reward.name}</h4>
                     {reward.description && <p className="text-sm text-gray-500 mt-1">{reward.description}</p>}
-                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full mt-2 inline-block">{reward.token_cost} tokens</span>
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full mt-2 inline-block">{reward.token_cost} tokens</span>
                   </div>
                   <div className={`ml-4 px-3 py-1 rounded-full text-xs font-medium ${
                     balance >= reward.token_cost 
-                      ? 'bg-green-100 text-green-700' 
+                      ? 'bg-sage-100 text-sage-700' 
                       : 'bg-gray-100 text-gray-500'
                   }`}>
                     {balance >= reward.token_cost ? 'Affordable' : `${reward.token_cost - balance} more needed`}

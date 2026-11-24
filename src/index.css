@@ -1,11 +1,76 @@
-/* Reset Vite default styles, apply mobile-friendly base */
+@import "tailwindcss";
+
+/* Palette: sage / forest / tan / sun (inspired by the Hotelo colour palette) */
+@theme {
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+
+  --color-cream: #e9ede8;
+
+  --color-forest-50: #eef3f0;
+  --color-forest-100: #d3e0d9;
+  --color-forest-200: #a8c1b4;
+  --color-forest-300: #6f9a85;
+  --color-forest-400: #2f6b55;
+  --color-forest-500: #1a5240;
+  --color-forest-600: #134735;
+  --color-forest-700: #0f3f31;
+  --color-forest-800: #0c3b2e;
+  --color-forest-900: #082a20;
+
+  --color-sage-50: #f1f6f2;
+  --color-sage-100: #e0ebe2;
+  --color-sage-200: #c4d8c8;
+  --color-sage-300: #a3c0a9;
+  --color-sage-400: #88ac8f;
+  --color-sage-500: #6d9773;
+  --color-sage-600: #5a8260;
+  --color-sage-700: #476b4d;
+  --color-sage-800: #38543d;
+  --color-sage-900: #2a3f2e;
+
+  --color-tan-50: #faf4ec;
+  --color-tan-100: #f3e6d3;
+  --color-tan-200: #e8d0ae;
+  --color-tan-300: #d8b27f;
+  --color-tan-400: #c99d66;
+  --color-tan-500: #bb8a52;
+  --color-tan-600: #a0733f;
+  --color-tan-700: #835c32;
+  --color-tan-800: #664726;
+  --color-tan-900: #4a331b;
+
+  --color-sun-50: #fff9e5;
+  --color-sun-100: #fff0c2;
+  --color-sun-200: #ffe38a;
+  --color-sun-300: #ffd552;
+  --color-sun-400: #ffc82a;
+  --color-sun-500: #ffba00;
+  --color-sun-600: #e6a400;
+  --color-sun-700: #8a5f00;
+  --color-sun-800: #6b4a00;
+  --color-sun-900: #4d3500;
+
+  /* Green-tinted neutrals so existing gray-* classes match the palette */
+  --color-gray-50: #f6f8f6;
+  --color-gray-100: #edf1ed;
+  --color-gray-200: #dde3dd;
+  --color-gray-300: #c6cfc7;
+  --color-gray-400: #8f9e92;
+  --color-gray-500: #667569;
+  --color-gray-600: #526157;
+  --color-gray-700: #3b4a41;
+  --color-gray-800: #0c3b2e;
+  --color-gray-900: #082a20;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
+  @apply bg-cream text-forest-800 font-sans;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -14,4 +79,18 @@ body {
   min-height: 100vh;
 }
 
-/* Remove Vite's max-width constraint */
+/* Serif headings, like the inspiration board */
+h1, h2, h3 {
+  @apply font-serif;
+}
+
+/* Touch-friendly tap targets */
+button {
+  @apply min-h-[44px];
+}
+
+/* Smooth scrolling for long lists */
+main {
+  @apply overflow-y-auto;
+  -webkit-overflow-scrolling: touch;
+}
