@@ -88,6 +88,24 @@ function App() {
     }
   }, [])
 
+  // If this device is already signed in as a parent, skip the login screen
+  const handleSelectParent = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, display_name')
+        .eq('id', session.user.id)
+        .single()
+      if (profile?.role === 'parent') {
+        setParentName(profile.display_name)
+        setView(VIEWS.PARENT_DASHBOARD)
+        return
+      }
+    }
+    setView(VIEWS.PARENT_LOGIN)
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setView(VIEWS.LANDING)
@@ -107,7 +125,7 @@ function App() {
     case VIEWS.LANDING:
       return (
         <LandingPage
-          onSelectParent={() => setView(VIEWS.PARENT_LOGIN)}
+          onSelectParent={handleSelectParent}
           onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
         />
       )
@@ -156,7 +174,7 @@ function App() {
 
     default:
       return <LandingPage
-        onSelectParent={() => setView(VIEWS.PARENT_LOGIN)}
+        onSelectParent={handleSelectParent}
         onSelectChild={() => setView(VIEWS.CHILD_SELECT)}
       />
   }

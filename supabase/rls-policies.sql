@@ -114,3 +114,9 @@ create policy "Parents can manage completed tasks" on completed_tasks
 
 create policy "Children can view their completed tasks" on completed_tasks
   for select using (is_child() and child_id = auth.uid());
+
+-- Allow deleting a chore without wiping its completion history
+alter table completed_tasks drop constraint if exists completed_tasks_chore_id_fkey;
+alter table completed_tasks
+  add constraint completed_tasks_chore_id_fkey
+  foreign key (chore_id) references chores(id) on delete set null;

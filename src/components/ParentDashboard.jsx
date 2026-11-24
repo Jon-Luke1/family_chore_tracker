@@ -47,6 +47,16 @@ function ChoresTab() {
     loadChores()
   }
 
+  const deleteChore = async (chore) => {
+    if (!window.confirm(`Delete "${chore.name}"? This can't be undone.`)) return
+    const { error } = await supabase.from('chores').delete().eq('id', chore.id)
+    if (error) {
+      alert('Failed to delete chore: ' + error.message)
+      return
+    }
+    loadChores()
+  }
+
   const toggleActive = async (chore) => {
     await supabase.from('chores').update({ is_active: !chore.is_active }).eq('id', chore.id)
     loadChores()
@@ -143,9 +153,14 @@ function ChoresTab() {
                   )}
                 </div>
               </div>
-              <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                {chore.is_active ? 'Active' : 'Inactive'}
-              </button>
+              <div className="flex flex-col gap-2 items-end">
+                <button onClick={() => toggleActive(chore)} className={`px-3 py-1 rounded-lg text-sm ${chore.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                  {chore.is_active ? 'Active' : 'Inactive'}
+                </button>
+                <button onClick={() => deleteChore(chore)} className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100">
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
