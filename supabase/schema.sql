@@ -27,6 +27,7 @@ create table chores (
   frequency text default 'once' check (frequency in ('once', 'daily', 'weekly')),
   is_active boolean default true,
   assigned_to uuid, -- null = up for grabs; FK added after profiles exists
+  available_days text not null default 'any' check (available_days in ('any', 'weekdays', 'weekends')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

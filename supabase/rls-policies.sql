@@ -132,6 +132,9 @@
 
         -- Used by the app (null = up for grabs); no-op if it already exists
         alter table chores add column if not exists assigned_to uuid references profiles on delete set null;
+        -- Which days a chore can be done: any day, weekdays (Mon-Fri) or weekends (Sat-Sun)
+        alter table chores add column if not exists available_days text not null default 'any'
+          check (available_days in ('any', 'weekdays', 'weekends'));
 
         -- Create the balance row on first earn instead of silently updating nothing
         create or replace function public.update_child_balance()
@@ -262,6 +265,16 @@
 
           if not found then
             raise exception 'Chore not available';
+          end if;
+
+          -- Weekday/weekend chores (family timezone)
+          if v_chore.available_days = 'weekdays'
+             and extract(isodow from now() at time zone 'America/New_York') > 5 then
+            raise exception 'This chore is only available on weekdays';
+          end if;
+          if v_chore.available_days = 'weekends'
+             and extract(isodow from now() at time zone 'America/New_York') < 6 then
+            raise exception 'This chore is only available on weekends';
           end if;
 
           if exists (

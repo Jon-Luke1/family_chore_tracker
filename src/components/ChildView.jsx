@@ -6,6 +6,12 @@ import RefreshButton from './RefreshButton'
 // is viewing the page on that child's behalf (and `onExit` returns to the dashboard).
 export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const actingAsParent = Boolean(childId)
+
+  // Weekday/weekend chores (the database makes the final call, in the family timezone)
+  const isWeekend = [0, 6].includes(new Date().getDay())
+  const unavailableToday = (chore) =>
+    (chore.available_days === 'weekdays' && isWeekend) ||
+    (chore.available_days === 'weekends' && !isWeekend)
   const [user, setUser] = useState(null)
   const [chores, setChores] = useState([])
   const [rewards, setRewards] = useState([])
@@ -41,7 +47,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
     setChores(choresData || [])
 
     // Load available rewards
-    const { data: rewardsData } = await supabase.from('rewards').select('*').eq('is_available', true)
+    const { data: rewardsData } = await supabase.from('rewards').select('*').eq('is_available', true).order('token_cost', { ascending: true }).order('name', { ascending: true })
     setRewards(rewardsData || [])
 
     // Completed today (local midnight onward)
@@ -188,7 +194,11 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                       </p>
                     )}
                   </div>
-                  {pendingIds.has(chore.id) && !actingAsParent ? (
+                  {unavailableToday(chore) && !actingAsParent ? (
+                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
+                      {chore.available_days === 'weekdays' ? 'Weekdays only' : 'Weekends only'}
+                    </span>
+                  ) : pendingIds.has(chore.id) && !actingAsParent ? (
                     <span className="ml-4 px-4 py-2 bg-sun-100 text-sun-700 rounded-xl text-sm font-medium text-center">
                       Sent for confirmation ⏳
                     </span>

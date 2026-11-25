@@ -7,7 +7,7 @@ function ChoresTab() {
   const [chores, setChores] = useState([])
   const [children, setChildren] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' })
+  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any' })
   const [addError, setAddError] = useState('')
   const [editingId, setEditingId] = useState(null) // chore being edited, or null when adding
 
@@ -26,7 +26,7 @@ function ChoresTab() {
     setChildren(data || [])
   }
 
-  const emptyChore = { name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '' }
+  const emptyChore = { name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any' }
 
   const closeForm = () => {
     setNewChore(emptyChore)
@@ -42,6 +42,7 @@ function ChoresTab() {
       token_reward: chore.token_reward,
       frequency: chore.frequency,
       assigned_to: chore.assigned_to || '',
+      available_days: chore.available_days || 'any',
     })
     setEditingId(chore.id)
     setAddError('')
@@ -140,6 +141,18 @@ function ChoresTab() {
             </div>
           </div>
           <div>
+            <label className="block text-xs text-gray-500 mb-1">Available on</label>
+            <select
+              value={newChore.available_days}
+              onChange={(e) => setNewChore({ ...newChore, available_days: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              <option value="any">Any day</option>
+              <option value="weekdays">Weekdays only (Mon–Fri)</option>
+              <option value="weekends">Weekends only (Sat–Sun)</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-500 mb-1">Assign to</label>
             <select
               value={newChore.assigned_to}
@@ -169,6 +182,12 @@ function ChoresTab() {
                 <div className="flex gap-2 mt-2 flex-wrap">
                   <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full">{chore.token_reward} tokens</span>
                   <span className="text-xs px-2 py-1 bg-sage-100 text-sage-700 rounded-full">{chore.frequency}</span>
+                  {chore.available_days === 'weekdays' && (
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">Weekdays only</span>
+                  )}
+                  {chore.available_days === 'weekends' && (
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">Weekends only</span>
+                  )}
                   {chore.assigned_to ? (
                     <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">
                       Assigned: {children.find(c => c.id === chore.assigned_to)?.display_name || 'Unknown'}
@@ -208,7 +227,7 @@ function RewardsTab() {
   useEffect(() => { loadRewards() }, [])
 
   const loadRewards = async () => {
-    const { data } = await supabase.from('rewards').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('rewards').select('*').order('token_cost', { ascending: true }).order('name', { ascending: true })
     setRewards(data || [])
   }
 
