@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import Avatar from './Avatar'
 
 const COLORS = ['bg-sage-600 text-white', 'bg-forest-800 text-white', 'bg-tan-500 text-white', 'bg-sun-500 text-forest-800']
 const EMOJIS = ['🌸', '⭐', '🌈', '🚀']
@@ -36,7 +37,12 @@ export default function ChildPicker({ onPick }) {
               onClick={() => onPick(child)}
               className={`w-full ${COLORS[i % COLORS.length]} py-6 px-6 rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center gap-4`}
             >
-              <span className="text-3xl">{EMOJIS[i % EMOJIS.length]}</span>
+              <Avatar
+                childId={child.id}
+                name={child.display_name}
+                size={48}
+                fallback={<span className="text-3xl">{EMOJIS[i % EMOJIS.length]}</span>}
+              />
               <span className="text-xl font-semibold">{child.display_name}</span>
             </button>
           ))}

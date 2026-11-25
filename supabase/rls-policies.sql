@@ -520,3 +520,42 @@
 
     revoke execute on function public.acknowledge_bonus(uuid) from public, anon;
     grant execute on function public.acknowledge_bonus(uuid) to authenticated;
+
+    -- ============================================
+    -- Child avatars (private storage bucket)
+    -- ============================================
+    -- One small JPEG per child at "<child id>.jpg". The bucket is private: photos
+    -- are only viewable through short-lived signed links, and only by that child
+    -- and by parents.
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values ('avatars', 'avatars', false, 1048576, array['image/jpeg'])
+    on conflict (id) do update
+      set public = false, file_size_limit = 1048576, allowed_mime_types = array['image/jpeg'];
+
+    drop policy if exists "Avatars: parents manage all" on storage.objects;
+    drop policy if exists "Avatars: children read own" on storage.objects;
+    drop policy if exists "Avatars: children upload own" on storage.objects;
+    drop policy if exists "Avatars: children update own" on storage.objects;
+    drop policy if exists "Avatars: children delete own" on storage.objects;
+
+    create policy "Avatars: parents manage all" on storage.objects
+      for all
+      using (bucket_id = 'avatars' and is_parent())
+      with check (bucket_id = 'avatars' and is_parent());
+
+    create policy "Avatars: children read own" on storage.objects
+      for select
+      using (bucket_id = 'avatars' and is_child() and name = auth.uid()::text || '.jpg');
+
+    create policy "Avatars: children upload own" on storage.objects
+      for insert
+      with check (bucket_id = 'avatars' and is_child() and name = auth.uid()::text || '.jpg');
+
+    create policy "Avatars: children update own" on storage.objects
+      for update
+      using (bucket_id = 'avatars' and is_child() and name = auth.uid()::text || '.jpg')
+      with check (bucket_id = 'avatars' and is_child() and name = auth.uid()::text || '.jpg');
+
+    create policy "Avatars: children delete own" on storage.objects
+      for delete
+      using (bucket_id = 'avatars' and is_child() and name = auth.uid()::text || '.jpg');

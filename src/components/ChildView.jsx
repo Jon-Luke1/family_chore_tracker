@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import RefreshButton from './RefreshButton'
+import Avatar from './Avatar'
+import { uploadAvatar } from '../lib/avatar'
 
 // Shown to a child on their own device. When `childId` is given, a signed-in parent
 // is viewing the page on that child's behalf (and `onExit` returns to the dashboard).
@@ -23,6 +25,8 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
   const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
   const [bonuses, setBonuses] = useState([]) // bonus messages not yet dismissed
+  const [avatarVersion, setAvatarVersion] = useState(0)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (childId) {
@@ -88,6 +92,21 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
     }
   }
 
+  const onPickAvatar = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow picking the same file again
+    if (!file || !user) return
+    setUploading(true)
+    try {
+      await uploadAvatar(user.id, file)
+      setAvatarVersion(v => v + 1)
+    } catch (err) {
+      alert('Could not upload the picture: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const dismissBonus = async (bonus) => {
     setBonuses(list => list.filter(b => b.id !== bonus.id))
     await supabase.rpc('acknowledge_bonus', { p_bonus_id: bonus.id })
@@ -120,7 +139,13 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       <nav className="bg-white shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xl">👋</span>
+            <label className="relative cursor-pointer" title="Change picture">
+              <Avatar childId={user?.id} name={displayName} size={40} version={avatarVersion} />
+              <span className="absolute -bottom-1 -right-1 bg-white rounded-full text-[10px] leading-none p-1 shadow">
+                {uploading ? '⏳' : '📷'}
+              </span>
+              <input type="file" accept="image/*" className="hidden" onChange={onPickAvatar} disabled={uploading} />
+            </label>
             <span className="font-bold text-gray-800">{displayName}</span>
           </div>
           <div className="flex items-center gap-4">
