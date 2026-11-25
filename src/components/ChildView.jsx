@@ -16,6 +16,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
   const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
   const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
+  const [bonuses, setBonuses] = useState([]) // bonus messages not yet dismissed
 
   useEffect(() => {
     if (childId) {
@@ -68,6 +69,29 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       .or(`status.eq.pending,and(status.eq.denied,resolved_at.gte.${startOfToday.toISOString()})`)
     setPendingIds(new Set((subs || []).filter(x => x.status === 'pending').map(x => x.chore_id)))
     setDeniedToday(Object.fromEntries((subs || []).filter(x => x.status === 'denied').map(x => [x.chore_id, x.note || ''])))
+
+    // Bonus messages from a parent (only on the child's own device, not parent mode)
+    if (!actingAsParent) {
+      const { data: bonusData } = await supabase
+        .from('bonus_awards')
+        .select('id, amount, reason, awarded_by_name')
+        .eq('child_id', userId)
+        .is('seen_at', null)
+        .order('created_at', { ascending: true })
+      setBonuses(bonusData || [])
+    }
+  }
+
+  const dismissBonus = async (bonus) => {
+    setBonuses(list => list.filter(b => b.id !== bonus.id))
+    await supabase.rpc('acknowledge_bonus', { p_bonus_id: bonus.id })
+  }
+
+  const bonusMessage = (b) => {
+    const reason = (b.reason || '').trim()
+    const tokens = `${b.amount} ${b.amount === 1 ? 'token' : 'tokens'}`
+    if (!reason) return `${b.awarded_by_name} awarded you ${tokens}.`
+    return `${b.awarded_by_name} awarded you ${tokens} for ${reason}${/[.!?]$/.test(reason) ? '' : '.'}`
   }
 
   const completeChore = async (chore) => {
@@ -117,6 +141,19 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+        {bonuses.map(b => (
+          <div key={b.id} className="bg-sun-100 border border-sun-500 rounded-2xl p-4 flex items-start gap-3">
+            <span className="text-2xl">🎉</span>
+            <p className="flex-1 text-sun-800 font-medium">{bonusMessage(b)}</p>
+            <button
+              onClick={() => dismissBonus(b)}
+              className="px-3 py-1 bg-sun-500 text-white rounded-full text-sm font-semibold shrink-0"
+            >
+              Thanks!
+            </button>
+          </div>
+        ))}
+
         {/* Token balance card */}
         <div className="bg-forest-800 rounded-3xl shadow-md p-6">
           <div className="flex items-center justify-between">

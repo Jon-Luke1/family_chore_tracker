@@ -428,3 +428,82 @@
 
         revoke execute on function public.set_child_balance(uuid, int, text) from public, anon;
         grant execute on function public.set_child_balance(uuid, int, text) to authenticated;
+
+    -- ============================================
+    -- Bonus tokens (parent -> child, with a message the child sees once)
+    -- ============================================
+    create table if not exists bonus_awards (
+      id uuid primary key default gen_random_uuid(),
+      child_id uuid not null references profiles(id) on delete cascade,
+      amount int not null check (amount > 0),
+      reason text,
+      awarded_by uuid references profiles(id) on delete set null,
+      awarded_by_name text not null,
+      created_at timestamptz not null default now(),
+      seen_at timestamptz
+    );
+    create index if not exists bonus_awards_child_idx on bonus_awards (child_id, seen_at);
+
+    alter table bonus_awards enable row level security;
+    drop policy if exists "Parents can view bonuses" on bonus_awards;
+    drop policy if exists "Children can view their bonuses" on bonus_awards;
+    create policy "Parents can view bonuses" on bonus_awards
+      for select using (is_parent());
+    create policy "Children can view their bonuses" on bonus_awards
+      for select using (is_child() and child_id = auth.uid());
+    -- Reads only: changes go through the functions below
+    grant select on bonus_awards to authenticated;
+
+    -- A parent awards bonus tokens. The name shown to the child is the parent's
+    -- profile name (e.g. "Dad" / "Mom"); an email-style name falls back to "A parent".
+    create or replace function public.award_bonus(
+      p_child_id uuid,
+      p_amount int,
+      p_reason text default null
+    )
+    returns void as $$
+    declare
+      v_name text;
+      v_reason text := nullif(trim(p_reason), '');
+    begin
+      if not is_parent() then
+        raise exception 'Only parents can award bonuses';
+      end if;
+      if p_amount is null or p_amount <= 0 then
+        raise exception 'Bonus must be at least 1 token';
+      end if;
+      if not exists (select 1 from profiles where id = p_child_id and role = 'child') then
+        raise exception 'Child not found';
+      end if;
+
+      select case when display_name is null or display_name like '%@%'
+                  then 'A parent' else display_name end
+      into v_name from profiles where id = auth.uid();
+
+      insert into bonus_awards (child_id, amount, reason, awarded_by, awarded_by_name)
+      values (p_child_id, p_amount, v_reason, auth.uid(), v_name);
+
+      -- The on_token_transaction trigger adds this to the child's balance
+      insert into token_transactions (child_id, type, amount, description)
+      values (p_child_id, 'manual_adjustment', p_amount,
+              'Bonus from ' || v_name || coalesce(': ' || v_reason, ''));
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.award_bonus(uuid, int, text) from public, anon;
+    grant execute on function public.award_bonus(uuid, int, text) to authenticated;
+
+    -- A child dismisses a bonus message so it isn't shown again
+    create or replace function public.acknowledge_bonus(p_bonus_id uuid)
+    returns void as $$
+    begin
+      if not is_child() then
+        raise exception 'Only children can do this';
+      end if;
+      update bonus_awards set seen_at = now()
+      where id = p_bonus_id and child_id = auth.uid() and seen_at is null;
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.acknowledge_bonus(uuid) from public, anon;
+    grant execute on function public.acknowledge_bonus(uuid) to authenticated;

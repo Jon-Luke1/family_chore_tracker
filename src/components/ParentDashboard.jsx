@@ -389,6 +389,67 @@ function BalanceOverride({ child, onSaved }) {
   )
 }
 
+function BonusAward({ child, onSaved }) {
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const award = async (e) => {
+    e.preventDefault()
+    const tokens = parseInt(amount, 10)
+    if (Number.isNaN(tokens) || tokens < 1) {
+      alert('Enter a bonus of 1 token or more')
+      return
+    }
+    if (!window.confirm(`Award ${tokens} bonus token${tokens === 1 ? '' : 's'} to ${child.display_name}?`)) return
+    setSaving(true)
+    const { error } = await supabase.rpc('award_bonus', {
+      p_child_id: child.id,
+      p_amount: tokens,
+      p_reason: reason || null,
+    })
+    setSaving(false)
+    if (error) {
+      alert('Failed to award bonus: ' + error.message)
+      return
+    }
+    setAmount('')
+    setReason('')
+    onSaved()
+  }
+
+  return (
+    <form onSubmit={award} className="mt-3 pt-3 border-t space-y-2">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Award bonus tokens</p>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          min="1"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Tokens"
+          className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+          required
+        />
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="For... (optional)"
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg"
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-4 py-2 bg-sage-600 text-white rounded-lg text-sm font-semibold hover:bg-sage-700 disabled:opacity-50"
+        >
+          {saving ? '...' : 'Award'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function ChildHistory({ child }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
@@ -492,6 +553,7 @@ function ChildrenTab({ onViewChild }) {
                 >
                   Open {child.display_name}'s page (complete chores for them)
                 </button>
+                <BonusAward child={child} onSaved={loadChildren} />
                 <BalanceOverride child={child} onSaved={loadChildren} />
                 <ChildHistory child={child} />
               </>
