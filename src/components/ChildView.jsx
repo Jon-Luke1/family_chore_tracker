@@ -14,6 +14,8 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [doneTodayIds, setDoneTodayIds] = useState(new Set())
   const [onceDoneIds, setOnceDoneIds] = useState(new Set()) // one-time chores completed by anyone
   const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
+  const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
+  const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
 
   useEffect(() => {
     if (childId) {
@@ -57,6 +59,15 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
     setOnceDoneIds(new Set(onceDone || []))
     const { data: mine } = await supabase.from('completed_tasks').select('chore_id').eq('child_id', userId)
     setMyDoneIds(new Set((mine || []).map(t => t.chore_id)))
+
+    // Waiting for a parent, plus anything a parent turned down today
+    const { data: subs } = await supabase
+      .from('chore_submissions')
+      .select('chore_id, status, note')
+      .eq('child_id', userId)
+      .or(`status.eq.pending,and(status.eq.denied,resolved_at.gte.${startOfToday.toISOString()})`)
+    setPendingIds(new Set((subs || []).filter(x => x.status === 'pending').map(x => x.chore_id)))
+    setDeniedToday(Object.fromEntries((subs || []).filter(x => x.status === 'denied').map(x => [x.chore_id, x.note || ''])))
   }
 
   const completeChore = async (chore) => {
@@ -64,9 +75,9 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
 
     const { error } = actingAsParent
       ? await supabase.rpc('complete_chore_for_child', { p_child_id: childId, p_chore_id: chore.id })
-      : await supabase.rpc('complete_chore', { p_chore_id: chore.id })
+      : await supabase.rpc('submit_chore', { p_chore_id: chore.id })
     if (error) {
-      alert('Could not complete chore: ' + error.message)
+      alert('Could not send chore: ' + error.message)
       return
     }
 
@@ -134,19 +145,33 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                     <h4 className="font-medium text-gray-800">{chore.name}</h4>
                     {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
                     <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
+                    {deniedToday[chore.id] !== undefined && !pendingIds.has(chore.id) && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Not approved this time{deniedToday[chore.id] ? `: ${deniedToday[chore.id]}` : ''}. You can try again.
+                      </p>
+                    )}
                   </div>
-                  {(chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
+                  {pendingIds.has(chore.id) && !actingAsParent ? (
+                    <span className="ml-4 px-4 py-2 bg-sun-100 text-sun-700 rounded-xl text-sm font-medium text-center">
+                      Sent for confirmation ⏳
+                    </span>
+                  ) : (chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
                    (chore.frequency === 'once' && onceDoneIds.has(chore.id)) ? (
                     <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
                       {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
                     </span>
                   ) : (
-                    <button
-                      onClick={() => completeChore(chore)}
-                      className="ml-4 px-5 py-2 bg-sage-600 text-white rounded-full text-sm font-semibold tracking-wide hover:bg-sage-700 active:scale-95 transition-all"
-                    >
-                      Done ✓
-                    </button>
+                    <div className="ml-4 flex flex-col items-end gap-1">
+                      {pendingIds.has(chore.id) && (
+                        <span className="text-xs text-sun-700">Sent for confirmation ⏳</span>
+                      )}
+                      <button
+                        onClick={() => completeChore(chore)}
+                        className="px-5 py-2 bg-sage-600 text-white rounded-full text-sm font-semibold tracking-wide hover:bg-sage-700 active:scale-95 transition-all"
+                      >
+                        Done ✓
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

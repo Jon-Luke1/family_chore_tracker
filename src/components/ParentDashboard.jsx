@@ -504,9 +504,94 @@ function ChildrenTab({ onViewChild }) {
   )
 }
 
+// Chores children have marked done, waiting for a parent to confirm or deny
+function ApprovalsTab({ pending, loaded, onChanged }) {
+  const [busyId, setBusyId] = useState(null)
+
+  const resolve = async (item, approve) => {
+    let note = null
+    if (!approve) {
+      note = window.prompt(`Deny "${item.chore?.name}" for ${item.child?.display_name}?\nOptional reason (shown to them):`, '')
+      if (note === null) return // cancelled
+    }
+    setBusyId(item.id)
+    const { error } = await supabase.rpc('resolve_submission', {
+      p_submission_id: item.id,
+      p_approve: approve,
+      p_note: note || null,
+    })
+    setBusyId(null)
+    if (error) {
+      alert((approve ? 'Could not confirm: ' : 'Could not deny: ') + error.message)
+    }
+    onChanged()
+  }
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-gray-800 mb-4">Waiting for confirmation</h3>
+      <div className="space-y-3">
+        {pending.map(item => (
+          <div key={item.id} className="p-4 rounded-xl border bg-white">
+            <div className="flex justify-between items-start gap-3">
+              <div className="min-w-0">
+                <h4 className="font-medium text-gray-800">{item.chore?.name || 'Chore'}</h4>
+                <p className="text-sm text-gray-500 mt-1">
+                  {item.child?.display_name} ·{' '}
+                  {new Date(item.submitted_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              </div>
+              <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full shrink-0">
+                {item.chore?.token_reward} tokens
+              </span>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => resolve(item, true)}
+                disabled={busyId === item.id}
+                className="flex-1 py-2 bg-sage-600 text-white rounded-lg text-sm font-semibold hover:bg-sage-700 disabled:opacity-50"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => resolve(item, false)}
+                disabled={busyId === item.id}
+                className="flex-1 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-100 disabled:opacity-50"
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        ))}
+        {loaded && pending.length === 0 && (
+          <p className="text-center text-gray-400 py-8">Nothing waiting. 🎉</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Main dashboard
 export default function ParentDashboard({ name, onLogout, onBack, onViewChild }) {
   const [tab, setTab] = useState('chores')
+  const [pending, setPending] = useState([])
+  const [pendingLoaded, setPendingLoaded] = useState(false)
+
+  const loadPending = async () => {
+    const { data } = await supabase
+      .from('chore_submissions')
+      .select('id, submitted_at, child:profiles!chore_submissions_child_id_fkey(display_name), chore:chores!chore_submissions_chore_id_fkey(name, token_reward)')
+      .eq('status', 'pending')
+      .order('submitted_at', { ascending: true })
+    setPending(data || [])
+    setPendingLoaded(true)
+    return data || []
+  }
+
+  // On sign-in, jump straight to the approvals list if anything is waiting
+  useEffect(() => {
+    loadPending().then(list => { if (list.length > 0) setTab('approvals') })
+  }, [])
 
   return (
     <div className="min-h-screen bg-cream">
@@ -527,6 +612,7 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
         <div className="bg-white rounded-3xl shadow-sm border border-forest-100 overflow-hidden">
           <div className="flex border-b">
             {[
+              { key: 'approvals', label: 'Approvals', icon: '✅', badge: pending.length },
               { key: 'chores', label: 'Chores', icon: '🧹' },
               { key: 'rewards', label: 'Rewards', icon: '🎁' },
               { key: 'children', label: 'Children', icon: '👧' },
@@ -539,11 +625,15 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
                 }`}
               >
                 <span className="mr-1">{t.icon}</span> {t.label}
+                {t.badge > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-sun-500 text-white text-xs rounded-full">{t.badge}</span>
+                )}
               </button>
             ))}
           </div>
           
           <div className="p-4">
+            {tab === 'approvals' && <ApprovalsTab pending={pending} loaded={pendingLoaded} onChanged={loadPending} />}
             {tab === 'chores' && <ChoresTab />}
             {tab === 'rewards' && <RewardsTab />}
             {tab === 'children' && <ChildrenTab onViewChild={onViewChild} />}
