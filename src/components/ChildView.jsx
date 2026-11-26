@@ -21,7 +21,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [completedToday, setCompletedToday] = useState(0)
   const [doneTodayIds, setDoneTodayIds] = useState(new Set())
   const [onceDoneIds, setOnceDoneIds] = useState(new Set()) // one-time chores completed by anyone
-  const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
+  const [, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
   const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
   const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
   const [bonuses, setBonuses] = useState([]) // bonus messages not yet dismissed
@@ -206,7 +206,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
           <div className="space-y-3">
-            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id) && !myDoneIds.has(chore.id))).map(chore => (
+            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id))).map(chore => (
               <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
                 <div className="flex justify-between items-center">
                   <div className="flex-1">

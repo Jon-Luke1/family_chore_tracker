@@ -18,7 +18,10 @@ function ChoresTab() {
 
   const loadChores = async () => {
     const { data } = await supabase.from('chores').select('*').order('created_at', { ascending: false })
-    setChores(data || [])
+    // One-time chores clear themselves once completed (history stays in completed_tasks)
+    const { data: done } = await supabase.from('completed_tasks').select('chore_id').not('chore_id', 'is', null)
+    const doneIds = new Set((done || []).map(d => d.chore_id))
+    setChores((data || []).filter(c => !(c.frequency === 'once' && doneIds.has(c.id))))
   }
 
   const loadChildren = async () => {
