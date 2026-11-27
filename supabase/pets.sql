@@ -574,10 +574,9 @@
 
     -- Everything the app needs: tokens, all of the caller's pets (brought up to date) and the bag.
     -- Checking in also settles any "full day of good care" XP.
-    create or replace function public.pet_status()
+    create or replace function public._pet_status_json(v_owner uuid)
     returns jsonb as $$
     declare
-      v_owner uuid := public._pet_owner();
       v_wallet pet_wallets%rowtype;
       v_pets jsonb := '[]'::jsonb;
       v_id uuid;
@@ -602,8 +601,33 @@
     end;
     $$ language plpgsql security definer set search_path = public;
 
+    revoke execute on function public._pet_status_json(uuid) from public, anon, authenticated;
+
+    create or replace function public.pet_status()
+    returns jsonb as $$
+      select public._pet_status_json(public._pet_owner());
+    $$ language sql security definer set search_path = public;
+
     revoke execute on function public.pet_status() from public, anon;
     grant execute on function public.pet_status() to authenticated;
+
+    -- Parents can look at a child's pets (the same view the child sees). Look only: this changes
+    -- nothing except bringing the pet's stats up to date for the time that has passed.
+    create or replace function public.pet_status_for_child(p_child_id uuid)
+    returns jsonb as $$
+    begin
+      if not is_parent() then
+        raise exception 'Only parents can do this';
+      end if;
+      if not exists (select 1 from profiles where id = p_child_id and role = 'child') then
+        raise exception 'Child not found';
+      end if;
+      return public._pet_status_json(p_child_id);
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.pet_status_for_child(uuid) from public, anon;
+    grant execute on function public.pet_status_for_child(uuid) to authenticated;
 
     -- ============================================
     -- Seasons and check-in bonus

@@ -392,7 +392,9 @@ function TestControls({ pet, onChanged }) {
 }
 
 // `banner` is an optional note shown on top, and `testMode` adds the test sliders (parent test mode)
-export default function PetPage({ onTokensChange, banner, testMode = false }) {
+// `viewChildId` is set when a parent looks at a child's pets: the same screens, but look only.
+export default function PetPage({ onTokensChange, banner, testMode = false, viewChildId = null, viewName = '' }) {
+  const readOnly = Boolean(viewChildId)
   const [status, setStatus] = useState(null)
   const [species, setSpecies] = useState([])
   const [items, setItems] = useState([])
@@ -419,7 +421,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const onCheckedIn = useRef(null)
 
   const loadStatus = useCallback(async () => {
-    const { data, error } = await petApi.status()
+    const { data, error } = await (viewChildId ? petApi.statusFor(viewChildId) : petApi.status())
     if (error) {
       setLoadError(error.message)
       return
@@ -436,7 +438,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
         if (before[p.id] != null && p.level > before[p.id] && onLevelUp.current) onLevelUp.current(p, before[p.id])
       }
     }
-  }, [onTokensChange])
+  }, [onTokensChange, viewChildId])
 
   useEffect(() => {
     let alive = true
@@ -455,12 +457,13 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   // Stats drift over time, so refresh now, every minute, and when the tab comes back
   // Opening the page (or coming back to it) is a check-in: 5 Pet Tokens, at most once an hour
   const checkIn = useCallback(async () => {
+    if (readOnly) return
     const { data } = await petApi.checkin()
     if (data?.awarded > 0) {
       await loadStatus()
       if (onCheckedIn.current) onCheckedIn.current(data.awarded)
     }
-  }, [loadStatus])
+  }, [loadStatus, readOnly])
 
   useEffect(() => {
     loadStatus()
@@ -499,7 +502,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
 
   // The pet says hello the first time it's seen after opening the page
   useEffect(() => {
-    if (petSpecies && !greeted.current) {
+    if (petSpecies && !greeted.current && !readOnly) {
       greeted.current = true
       playSound('greet', petSpecies.kind)
     }
@@ -552,7 +555,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
 
   // Runs an action, reports the result, and refreshes. Returns true on success.
   const run = async (fn, { ok, emoji, sound, activity: kind } = {}) => {
-    if (busy) return false
+    if (busy || readOnly) return false
     setBusy(true)
     const err = await fn()
     if (err) {
@@ -626,6 +629,13 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   if (!status) {
     return <p className="text-center text-gray-400 py-10">Loading...</p>
   }
+  if (readOnly && pets.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border p-6 text-center text-sm text-gray-500">
+        {viewName || 'This child'} doesn&apos;t have a pet yet.
+      </div>
+    )
+  }
 
   const cuddleWait = pet?.cuddle_ready_at
     ? Math.ceil((new Date(pet.cuddle_ready_at).getTime() - status.loadedAt) / 60000)
@@ -642,17 +652,21 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   // Which of your other pets is already wearing an item
   const wornBy = (itemId) => pets.find(p => p.id !== pet?.id && (p.collar === itemId || p.head === itemId || p.face === itemId))
 
-  const showStore = !pet || adding
+  const showStore = (!pet || adding) && !readOnly
 
   return (
     <div className="space-y-5">
-      {banner && (
+      {readOnly ? (
+        <div className="bg-sun-100 text-sun-800 text-sm text-center py-2 px-4 rounded-xl">
+          👀 You&apos;re looking at {viewName ? `${viewName}'s` : 'their'} pets. This is what they see, but you can&apos;t change anything.
+        </div>
+      ) : banner && (
         <div className="bg-sun-100 text-sun-800 text-sm text-center py-2 px-4 rounded-xl">{banner}</div>
       )}
 
       <PetTokens tokens={tokens} />
 
-      <div className="flex justify-end -mt-3">
+      {!readOnly && <div className="flex justify-end -mt-3">
         <button
           type="button"
           onClick={toggleSound}
@@ -661,7 +675,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
         >
           {soundOff ? '🔇 Sounds off' : '🔊 Sounds on'}
         </button>
-      </div>
+      </div>}
 
       {toast && !(pet && !showStore && tab === 'home') && (
         <div
@@ -688,7 +702,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
             pets={pets}
             selectedId={pet.id}
             onSelect={selectPet}
-            canAdd={pets.length < maxPets}
+            canAdd={pets.length < maxPets && !readOnly}
             onAdd={() => setAdding(true)}
           />
 
@@ -760,10 +774,11 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                 ) : (
                   <button
                     onClick={() => { setNameDraft(pet.name); setRenaming(true) }}
+                    disabled={readOnly}
                     className="text-xl font-bold text-forest-800 flex items-center gap-2"
                     title="Change name"
                   >
-                    {pet.name} <span className="text-sm text-gray-400">✏️</span>
+                    {pet.name} {!readOnly && <span className="text-sm text-gray-400">✏️</span>}
                   </button>
                 )}
                 <p className="text-xs text-gray-500">{speciesName}</p>
@@ -771,7 +786,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
               </div>
 
               {sick && <SickBanner pet={pet} now={status.loadedAt} />}
-              {dead && <ReviveBox pet={pet} tokens={tokens} busy={busy} onRevive={revive} />}
+              {dead && <ReviveBox pet={pet} tokens={tokens} busy={busy || readOnly} onRevive={revive} />}
 
               {!dead && <div className="grid grid-cols-3 gap-2">
                 {CARE_ACTIONS.map(key => {
@@ -781,7 +796,8 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                     <button
                       key={key}
                       onClick={() => setPicker(picker === key ? null : key)}
-                      className={`relative bg-white border rounded-2xl py-3 flex flex-col items-center active:scale-95 transition-all ${
+                      disabled={readOnly}
+                      className={`relative bg-white border rounded-2xl py-3 flex flex-col items-center active:scale-95 transition-all disabled:opacity-60 ${
                         picker === key ? 'border-sun-500 ring-2 ring-sun-200' : ''
                       }`}
                     >
@@ -795,7 +811,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                 })}
                 <button
                   onClick={cuddle}
-                  disabled={busy || cuddleWait > 0}
+                  disabled={busy || readOnly || cuddleWait > 0}
                   className="bg-white border rounded-2xl py-3 flex flex-col items-center active:scale-95 transition-all disabled:opacity-50"
                 >
                   <span className="text-2xl">🤗</span>
@@ -926,7 +942,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                     ) : (
                       <button
                         onClick={() => buy(item)}
-                        disabled={busy || tokens < item.cost}
+                        disabled={busy || readOnly || tokens < item.cost}
                         className="px-3 py-1.5 bg-sun-500 text-white rounded-full text-sm font-semibold shrink-0 disabled:opacity-40"
                       >
                         🐾 {item.cost}
@@ -971,7 +987,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => takeOff(cat.slot)}
-                          disabled={busy || !wearing}
+                          disabled={busy || readOnly || !wearing}
                           className={`px-3 py-1.5 rounded-full text-sm border ${!wearing ? 'bg-forest-800 text-white border-forest-800' : 'bg-white text-gray-600'}`}
                         >
                           None
@@ -982,7 +998,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                             <button
                               key={item.id}
                               onClick={() => wear(item)}
-                              disabled={busy || wearing === item.id}
+                              disabled={busy || readOnly || wearing === item.id}
                               className={`px-3 py-1.5 rounded-full text-sm border ${wearing === item.id ? 'bg-forest-800 text-white border-forest-800' : 'bg-white text-gray-700'}`}
                             >
                               {item.emoji} {item.name}{other ? ` (on ${other.name})` : ''}

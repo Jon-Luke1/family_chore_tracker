@@ -83,6 +83,8 @@ const call = async (fn, args) => {
 
 export const petApi = {
   status: () => supabase.rpc('pet_status'),
+  // A parent looking at a child's pets (read only)
+  statusFor: (childId) => supabase.rpc('pet_status_for_child', { p_child_id: childId }),
   // Resolves to { data: { awarded, ready_at } }; pays 5 Pet Tokens at most once an hour
   checkin: () => supabase.rpc('pet_checkin'),
   // Resolves to { error, data: the new pet's id }

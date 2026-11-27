@@ -16,13 +16,13 @@ const SHORT_MOOD = {
 
 // A peek at the child's pets on the chores screen: how each one is feeling right now.
 // Tapping it opens the pet page. Renders nothing until the child has a pet.
-export default function PetHomeCard({ onOpen }) {
+export default function PetHomeCard({ onOpen, childId = null }) {
   const [status, setStatus] = useState(null)
 
   const load = useCallback(async () => {
-    const { data, error } = await petApi.status()
+    const { data, error } = await (childId ? petApi.statusFor(childId) : petApi.status())
     if (!error) setStatus({ ...data, loadedAt: Date.now() })
-  }, [])
+  }, [childId])
 
   useEffect(() => {
     load()
@@ -38,7 +38,7 @@ export default function PetHomeCard({ onOpen }) {
   const pets = status?.pets || []
   if (pets.length === 0) return null
 
-  const checkinReady = !status.checkin_ready_at || new Date(status.checkin_ready_at).getTime() <= Date.now()
+  const checkinReady = !childId && (!status.checkin_ready_at || new Date(status.checkin_ready_at).getTime() <= Date.now())
 
   return (
     <button

@@ -93,13 +93,14 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       setTakenIds(new Set(taken || []))
     }
 
+    // Pets (parents can look at them too, read only)
+    const { data: wallet, error: walletError } = await supabase
+      .from('pet_wallets').select('tokens').eq('owner_id', userId).maybeSingle()
+    setPetReady(!walletError)
+    setPetTokens(wallet?.tokens || 0)
+
     // Bonus messages from a parent (only on the child's own device, not parent mode)
     if (!actingAsParent) {
-      const { data: wallet, error: walletError } = await supabase
-        .from('pet_wallets').select('tokens').eq('owner_id', userId).maybeSingle()
-      setPetReady(!walletError)
-      setPetTokens(wallet?.tokens || 0)
-
       const { data: bonusData } = await supabase
         .from('bonus_awards')
         .select('id, amount, reason, awarded_by_name')
@@ -193,7 +194,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
-        {petReady && !actingAsParent && (
+        {petReady && (
           <div className="flex bg-white rounded-2xl border overflow-hidden">
             {[
               { key: 'chores', label: 'Chores', icon: '🧹' },
@@ -225,8 +226,8 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
           </div>
         ))}
 
-        {section === 'pet' && petReady && !actingAsParent ? (
-          <PetPage onTokensChange={setPetTokens} />
+        {section === 'pet' && petReady ? (
+          <PetPage onTokensChange={setPetTokens} viewChildId={actingAsParent ? childId : null} viewName={displayName} />
         ) : (<>
         {/* Token balance card */}
         <div className="bg-forest-800 rounded-3xl shadow-md p-6">
@@ -243,7 +244,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
               <p className="text-3xl font-bold text-white font-serif mt-1">{completedToday}</p>
             </div>
           </div>
-          {petReady && !actingAsParent && (
+          {petReady && (
             <button
               onClick={() => setSection('pet')}
               className="mt-4 w-full flex items-center justify-between bg-forest-700 rounded-2xl px-4 py-2 text-sm text-sage-200"
@@ -254,7 +255,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
           )}
         </div>
 
-        {petReady && !actingAsParent && <PetHomeCard onOpen={() => setSection('pet')} />}
+        {petReady && <PetHomeCard onOpen={() => setSection('pet')} childId={actingAsParent ? childId : null} />}
 
         {/* Available chores */}
         <div>
