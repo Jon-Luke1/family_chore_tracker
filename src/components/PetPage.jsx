@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { petMood, ageStage } from '../lib/petArt'
 import {
-  CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, KIND_LABEL, SPECIES_TIERS,
+  CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, KIND_LABEL, SPECIES_TIERS, SEASONS,
   levelReward, describeEffects, petApi,
 } from '../lib/pets'
 import PetSprite from './PetSprite'
@@ -26,6 +26,21 @@ const ACTIVITY_TEXT = {
 }
 const CARE_SOUND = { food: 'eat', treat: 'treat', toy: 'toy', groom: 'groom', bed: 'sleep' }
 const TIER_NOTE = { 1: '🐶🐱 Dogs & cats', 2: '🦎 Exotic pets' }
+
+// Tells the child when the next check-in bonus is ready
+function CheckinNote({ status }) {
+  const bonus = status.checkin_bonus || 5
+  const wait = status.checkin_ready_at
+    ? Math.ceil((new Date(status.checkin_ready_at).getTime() - status.loadedAt) / 60000)
+    : 0
+  return (
+    <p className="text-xs text-gray-500 text-center">
+      {wait > 0
+        ? `🎁 Check-in bonus: +${bonus} Pet Tokens again in ${wait} min`
+        : `🎁 Check-in bonus ready: +${bonus} Pet Tokens`}
+    </p>
+  )
+}
 
 function StatBar({ icon, label, value }) {
   const v = Math.round(value)
@@ -349,6 +364,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const sceneRef = useRef(null)
   const knownLevels = useRef(null)
   const onLevelUp = useRef(null)
+  const onCheckedIn = useRef(null)
 
   const loadStatus = useCallback(async () => {
     const { data, error } = await petApi.status()
@@ -385,16 +401,31 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   }, [])
 
   // Stats drift over time, so refresh now, every minute, and when the tab comes back
+  // Opening the page (or coming back to it) is a check-in: 5 Pet Tokens, at most once an hour
+  const checkIn = useCallback(async () => {
+    const { data } = await petApi.checkin()
+    if (data?.awarded > 0) {
+      await loadStatus()
+      if (onCheckedIn.current) onCheckedIn.current(data.awarded)
+    }
+  }, [loadStatus])
+
   useEffect(() => {
     loadStatus()
+    checkIn()
     const timer = setInterval(loadStatus, 60000)
-    const onVisible = () => { if (document.visibilityState === 'visible') loadStatus() }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        loadStatus()
+        checkIn()
+      }
+    }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [loadStatus])
+  }, [loadStatus, checkIn])
 
   useEffect(() => () => {
     clearTimeout(toastTimer.current)
@@ -444,6 +475,13 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
       playSound('levelup')
       playFx('🎉')
       setLevelFlash({ id: p.id, key: Date.now() })
+    }
+  })
+
+  useEffect(() => {
+    onCheckedIn.current = (n) => {
+      showToast(`🎁 Thanks for checking in! +${n} Pet Tokens`)
+      playSound('sparkle')
     }
   })
 
@@ -539,6 +577,11 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     : 0
 
   // Food and treats are made for one kind of pet; everything else suits any pet
+  // Seasonal items only appear in the shop while their season is on (what's already owned stays in the bag)
+  const seasonTabs = (status.seasons || []).filter(k => SEASONS[k]).map(k => ({ key: `season:${k}`, ...SEASONS[k] }))
+  const shopItems = items.filter(i => (shopCat.startsWith('season:')
+    ? i.season === shopCat.slice(7) && (status.seasons || []).includes(i.season)
+    : i.category === shopCat && !i.season))
   const suitsPet = (item) => item.for_tier == null || item.for_tier === petTier
   const ownedIn = (catKey) => items.filter(i => i.category === catKey && (inventory[i.id] || 0) > 0 && suitsPet(i))
   // Which of your other pets is already wearing an item
@@ -752,6 +795,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                 <div className="pt-2 border-t">
                   <CareStreak pet={pet} now={status.loadedAt} />
                 </div>
+                <CheckinNote status={status} />
               </div>
 
               {testMode && <TestControls key={pet.id} pet={pet} onChanged={loadStatus} />}
@@ -761,6 +805,17 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
           {tab === 'shop' && (
             <div className="space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-1">
+                {seasonTabs.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => setShopCat(t.key)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                      shopCat === t.key ? 'bg-red-600 text-white border-red-600' : 'bg-red-50 text-red-700 border-red-200'
+                    }`}
+                  >
+                    {t.icon} {t.label}
+                  </button>
+                ))}
                 {CATEGORIES.map(c => (
                   <button
                     key={c.key}
@@ -774,7 +829,12 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                 ))}
               </div>
 
-              {items.filter(i => i.category === shopCat).sort((a, b) => a.cost - b.cost).map(item => {
+              {shopCat.startsWith('season:') && (
+                <p className="text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2">
+                  {SEASONS[shopCat.slice(7)]?.note}
+                </p>
+              )}
+              {shopItems.sort((a, b) => a.cost - b.cost).map(item => {
                 const cat = CATEGORY[item.category]
                 const have = inventory[item.id] || 0
                 const owned = !cat.consumable && have > 0

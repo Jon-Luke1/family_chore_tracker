@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import RefreshButton from './RefreshButton'
 import Avatar from './Avatar'
 import PetPage from './PetPage'
+import PetHomeCard from './PetHomeCard'
+import { CHORE_KINDS } from '../lib/choreKinds'
 import { uploadAvatar } from '../lib/avatar'
 
 // Shown to a child on their own device. When `childId` is given, a signed-in parent
@@ -242,6 +244,8 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
           )}
         </div>
 
+        {petReady && !actingAsParent && <PetHomeCard onOpen={() => setSection('pet')} />}
+
         {/* Available chores */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
@@ -251,6 +255,11 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                 <div className="flex justify-between items-center">
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-800">{chore.name}</h4>
+                    {chore.kind && chore.kind !== 'chore' && CHORE_KINDS[chore.kind] && (
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium mt-1 mr-1 inline-block ${CHORE_KINDS[chore.kind].badge}`}>
+                        {CHORE_KINDS[chore.kind].icon} {CHORE_KINDS[chore.kind].label}
+                      </span>
+                    )}
                     {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
                     <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
                     {deniedToday[chore.id] !== undefined && !pendingIds.has(chore.id) && (

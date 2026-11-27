@@ -329,6 +329,28 @@ function collar(id, uid) {
         `<path d="M100 131 L109 140 L100 153 L91 140 Z" fill="#8fdcff" stroke="${OUT}" stroke-width="2.2" stroke-linejoin="round"/>` +
         `<path d="M95 140 L105 140 M100 133 L100 150" stroke="#fff" stroke-width="1.2" opacity="0.8"/>` +
         `<path d="M118 130 l2 4 l4 2 l-4 2 l-2 4 l-2 -4 l-4 -2 l4 -2z" fill="#fff" stroke="#8fdcff" stroke-width="0.8"/>`
+    case 'collar-candycane':
+      return `<path d="M62 123 Q100 143 138 123" fill="none" stroke="${OUT}" stroke-width="13" stroke-linecap="round"/>` +
+        `<path d="M62 123 Q100 143 138 123" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>` +
+        `<path d="M62 123 Q100 143 138 123" fill="none" stroke="#e5484d" stroke-width="8" stroke-dasharray="5 6.5" stroke-dashoffset="2"/>` +
+        // scarf tail hanging down on one side
+        `<path d="M118 138 L126 164 L110 167 L106 143 Z" fill="#ffffff" stroke="${OUT}" stroke-width="2.4" stroke-linejoin="round"/>` +
+        `<path d="M109 150 L120 148 M111 158 L123 156" stroke="#e5484d" stroke-width="3.4"/>` +
+        `<path d="M110 167 l-2 5 M114 166 l-1 6 M118 165 l0 6 M122 165 l1 5 M126 164 l2 5" stroke="${OUT}" stroke-width="1.6" stroke-linecap="round"/>`
+    case 'collar-holly': {
+      let s = `<path d="M62 123 Q100 143 138 123" fill="none" stroke="${OUT}" stroke-width="13" stroke-linecap="round"/>` +
+        `<path d="M62 123 Q100 143 138 123" fill="none" stroke="#2f8f4e" stroke-width="8" stroke-linecap="round"/>`
+      for (const x of [80, 120]) {
+        const y = 123 + 20 * (1 - ((x - 100) / 38) ** 2) * 0.95 - 2
+        s += `<ellipse cx="${x - 7}" cy="${y + 2}" rx="8" ry="4" fill="#3fae60" stroke="${OUT}" stroke-width="1.8" transform="rotate(-25 ${x - 7} ${y + 2})"/>`
+        s += `<ellipse cx="${x + 7}" cy="${y + 2}" rx="8" ry="4" fill="#3fae60" stroke="${OUT}" stroke-width="1.8" transform="rotate(25 ${x + 7} ${y + 2})"/>`
+      }
+      s += `<circle cx="100" cy="141" r="5.2" fill="#e5484d" stroke="${OUT}" stroke-width="2"/>` +
+        `<circle cx="91" cy="138" r="4.6" fill="#e5484d" stroke="${OUT}" stroke-width="2"/>` +
+        `<circle cx="109" cy="138" r="4.6" fill="#e5484d" stroke="${OUT}" stroke-width="2"/>` +
+        `<circle cx="98.5" cy="139" r="1.3" fill="#fff" opacity="0.8"/>`
+      return s
+    }
     default:
       return ''
   }
@@ -364,6 +386,30 @@ function headItem(id) {
         `<circle cx="100" cy="38" r="4" fill="#e5484d" stroke="${OUT}" stroke-width="1.6"/>` +
         `<circle cx="78" cy="46" r="3" fill="#3b82f6" stroke="${OUT}" stroke-width="1.4"/><circle cx="122" cy="46" r="3" fill="#22c55e" stroke="${OUT}" stroke-width="1.4"/>` +
         `<circle cx="70" cy="24" r="3" fill="#fff" stroke="${OUT}" stroke-width="1.4"/><circle cx="130" cy="24" r="3" fill="#fff" stroke="${OUT}" stroke-width="1.4"/>`
+    case 'hat-santa':
+      return `<g transform="rotate(-7 100 58)">` +
+        `<path d="M68 62 C64 36 82 16 108 16 C130 16 146 30 150 52 C152 60 156 66 158 74 C142 66 136 62 134 62 Z" fill="#e5484d" stroke="${OUT}" stroke-width="3" stroke-linejoin="round"/>` +
+        `<path d="M88 30 C84 40 82 50 83 60 M110 26 C112 38 118 50 126 60" stroke="#c0282e" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.8"/>` +
+        `<rect x="62" y="55" width="80" height="15" rx="7.5" fill="#fff" stroke="${OUT}" stroke-width="3"/>` +
+        `<circle cx="158" cy="76" r="8.5" fill="#fff" stroke="${OUT}" stroke-width="2.8"/></g>`
+    case 'hat-elf':
+      return `<g transform="rotate(8 100 58)">` +
+        `<path d="M70 62 C74 40 90 22 118 8 C112 24 124 44 132 62 Z" fill="#2f9e57" stroke="${OUT}" stroke-width="3" stroke-linejoin="round"/>` +
+        `<path d="M86 40 L112 40" stroke="#e5484d" stroke-width="0" />` +
+        `<circle cx="96" cy="46" r="2.6" fill="#ffd552"/><circle cx="110" cy="40" r="2.2" fill="#ffd552"/>` +
+        `<rect x="66" y="56" width="70" height="12" rx="6" fill="#e5484d" stroke="${OUT}" stroke-width="3"/>` +
+        `<path d="M76 62 h8 M92 62 h8 M108 62 h8 M124 62 h6" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>` +
+        `<circle cx="118" cy="9" r="6" fill="#ffc82a" stroke="${OUT}" stroke-width="2.4"/>` +
+        `<path d="M115 10 h6" stroke="${OUT}" stroke-width="1.4"/></g>`
+    case 'hat-antlers': {
+      const horn = (m) =>
+        `<g transform="translate(${m < 0 ? 78 : 122} 62) scale(${m} 1)">` +
+        `<path d="M0 0 C-2 -14 -4 -26 -10 -40 M-3 -18 C-10 -22 -16 -24 -20 -34 M-7 -30 C-4 -38 0 -44 2 -50" fill="none" stroke="${OUT}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<path d="M0 0 C-2 -14 -4 -26 -10 -40 M-3 -18 C-10 -22 -16 -24 -20 -34 M-7 -30 C-4 -38 0 -44 2 -50" fill="none" stroke="#9a6a3a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `</g>`
+      return horn(-1) + horn(1) +
+        `<circle cx="68" cy="30" r="3.6" fill="#e5484d" stroke="${OUT}" stroke-width="1.6"/><circle cx="132" cy="30" r="3.6" fill="#e5484d" stroke="${OUT}" stroke-width="1.6"/>`
+    }
     default:
       return ''
   }
@@ -383,6 +429,15 @@ function faceItem(id) {
     case 'glasses-heart': {
       const h = (x) => `<path transform="translate(${x} 92) scale(1.25)" d="M0 9 C-19 -6 -11 -19 0 -9 C11 -19 19 -6 0 9Z" fill="#ff5c8a" fill-opacity="0.88" stroke="#b3124f" stroke-width="2.2" stroke-linejoin="round"/>`
       return h(78) + h(122) + `<path d="M91 88 Q100 84 109 88" fill="none" stroke="#b3124f" stroke-width="2.6" stroke-linecap="round"/>`
+    }
+    case 'glasses-snow': {
+      const flake = (x) => {
+        let f = `<circle cx="${x}" cy="92" r="14.5" fill="rgba(200,235,255,0.45)" stroke="#5aa9e6" stroke-width="3"/>`
+        for (const a of [0, 60, 120]) f += `<path d="M${x - 9} 92 H${x + 9}" stroke="#fff" stroke-width="2.2" stroke-linecap="round" transform="rotate(${a} ${x} 92)"/>`
+        return f
+      }
+      return flake(78) + flake(122) +
+        `<path d="M92 90 Q100 85 108 90 M64 90 L54 86 M136 90 L146 86" fill="none" stroke="#5aa9e6" stroke-width="3" stroke-linecap="round"/>`
     }
     default:
       return ''

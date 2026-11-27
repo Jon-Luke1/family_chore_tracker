@@ -22,6 +22,11 @@ export const TIERS = {
   4: { label: 'Deluxe', badge: 'bg-purple-100 text-purple-700' },
 }
 
+// Seasonal shop tabs. The dates are decided in the database (_active_seasons in supabase/pets.sql).
+export const SEASONS = {
+  christmas: { label: 'Christmas', icon: '🎄', note: '🎅 Holiday items are only for sale until January 6!' },
+}
+
 export const MAX_LEVEL = 30
 
 // Pet Tokens paid when a pet reaches a level. Keep in sync with _level_reward in supabase/pets.sql.
@@ -65,6 +70,8 @@ const call = async (fn, args) => {
 
 export const petApi = {
   status: () => supabase.rpc('pet_status'),
+  // Resolves to { data: { awarded, ready_at } }; pays 5 Pet Tokens at most once an hour
+  checkin: () => supabase.rpc('pet_checkin'),
   // Resolves to { error, data: the new pet's id }
   adopt: async (speciesId, name) => {
     const { data, error } = await supabase.rpc('adopt_pet', { p_species_id: speciesId, p_name: name })
