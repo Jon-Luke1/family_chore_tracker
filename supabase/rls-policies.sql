@@ -247,11 +247,18 @@
         revoke execute on function public._complete_chore(uuid, uuid, boolean, timestamptz)
           from public, anon, authenticated;
 
+        -- Time-of-day chores: morning is 6am-noon, evening is noon-10pm (family timezone)
+        alter table chores add column if not exists available_time text not null default 'any';
+        alter table chores drop constraint if exists chores_available_time_check;
+        alter table chores add constraint chores_available_time_check
+          check (available_time in ('any', 'morning', 'evening'));
+
         -- A child says they did a chore. No tokens yet: it waits for a parent.
         create or replace function public.submit_chore(p_chore_id uuid)
         returns void as $$
         declare
           v_chore chores%rowtype;
+          v_hour int := extract(hour from now() at time zone 'America/New_York');
         begin
           if not is_child() then
             raise exception 'Only children can submit chores';
@@ -277,11 +284,36 @@
             raise exception 'This chore is only available on weekends';
           end if;
 
+          -- Morning / evening chores
+          if v_chore.available_time = 'morning' and not (v_hour >= 6 and v_hour < 12) then
+            raise exception 'This chore is only available in the morning (6am to noon)';
+          end if;
+          if v_chore.available_time = 'evening' and not (v_hour >= 12 and v_hour < 22) then
+            raise exception 'This chore is only available in the afternoon and evening (noon to 10pm)';
+          end if;
+
           if exists (
             select 1 from chore_submissions
             where chore_id = v_chore.id and child_id = auth.uid() and status = 'pending'
           ) then
             raise exception 'Already sent for confirmation';
+          end if;
+
+          -- Up for grabs: once one child has it (waiting for a parent, or done today) it's taken
+          if v_chore.assigned_to is null then
+            if exists (
+              select 1 from chore_submissions
+              where chore_id = v_chore.id and child_id <> auth.uid() and status = 'pending'
+            ) then
+              raise exception 'Someone else already sent this one in';
+            end if;
+            if v_chore.frequency <> 'once' and exists (
+              select 1 from completed_tasks
+              where chore_id = v_chore.id and child_id <> auth.uid()
+                and completed_at >= date_trunc('day', now() at time zone 'America/New_York') at time zone 'America/New_York'
+            ) then
+              raise exception 'Someone else already did this one today';
+            end if;
           end if;
 
           if v_chore.frequency = 'once' then
@@ -393,6 +425,30 @@
 
         revoke execute on function public.completed_once_chore_ids() from public, anon;
         grant execute on function public.completed_once_chore_ids() to authenticated;
+
+        -- Ids of "up for grabs" chores another child has already taken: sent in and waiting for
+        -- a parent, or completed today. Children can't read each other's activity directly, so
+        -- this lets the app hide those chores for everyone else.
+        create or replace function public.chore_taken_ids()
+        returns setof uuid as $$
+          select c.id
+          from chores c
+          where c.is_active and c.assigned_to is null and is_child()
+            and (
+              exists (
+                select 1 from chore_submissions s
+                where s.chore_id = c.id and s.status = 'pending' and s.child_id <> auth.uid()
+              )
+              or (c.frequency <> 'once' and exists (
+                select 1 from completed_tasks t
+                where t.chore_id = c.id and t.child_id <> auth.uid()
+                  and t.completed_at >= date_trunc('day', now() at time zone 'America/New_York') at time zone 'America/New_York'
+              ))
+            );
+        $$ language sql security definer stable set search_path = public;
+
+        revoke execute on function public.chore_taken_ids() from public, anon;
+        grant execute on function public.chore_taken_ids() to authenticated;
 
         -- ============================================
         -- Parent balance override

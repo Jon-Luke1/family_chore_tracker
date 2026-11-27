@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import RefreshButton from './RefreshButton'
 import PetPage from './PetPage'
-import { CHORE_KINDS } from '../lib/choreKinds'
+import { CHORE_KINDS, CHORE_TIMES } from '../lib/choreKinds'
 
 // Tab components
 function ChoresTab() {
   const [chores, setChores] = useState([])
   const [children, setChildren] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any', kind: 'chore' })
+  const [newChore, setNewChore] = useState({ name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any', available_time: 'any', kind: 'chore' })
   const [addError, setAddError] = useState('')
   const [editingId, setEditingId] = useState(null) // chore being edited, or null when adding
 
@@ -31,7 +31,7 @@ function ChoresTab() {
     setChildren(data || [])
   }
 
-  const emptyChore = { name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any', kind: 'chore' }
+  const emptyChore = { name: '', description: '', token_reward: 10, frequency: 'daily', assigned_to: '', available_days: 'any', available_time: 'any', kind: 'chore' }
 
   const closeForm = () => {
     setNewChore(emptyChore)
@@ -49,6 +49,7 @@ function ChoresTab() {
       assigned_to: chore.assigned_to || '',
       available_days: chore.available_days || 'any',
       kind: chore.kind || 'chore',
+      available_time: chore.available_time || 'any',
     })
     setEditingId(chore.id)
     setAddError('')
@@ -171,6 +172,18 @@ function ChoresTab() {
             </select>
           </div>
           <div>
+            <label className="block text-xs text-gray-500 mb-1">Time of day</label>
+            <select
+              value={newChore.available_time}
+              onChange={(e) => setNewChore({ ...newChore, available_time: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              {Object.entries(CHORE_TIMES).map(([key, t]) => (
+                <option key={key} value={key}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-500 mb-1">Assign to</label>
             <select
               value={newChore.assigned_to}
@@ -210,6 +223,9 @@ function ChoresTab() {
                   )}
                   {chore.available_days === 'weekends' && (
                     <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">Weekends only</span>
+                  )}
+                  {CHORE_TIMES[chore.available_time]?.short && (
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">{CHORE_TIMES[chore.available_time].short}</span>
                   )}
                   {chore.assigned_to ? (
                     <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">

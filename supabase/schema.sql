@@ -29,6 +29,7 @@ create table chores (
   assigned_to uuid, -- null = up for grabs; FK added after profiles exists
   available_days text not null default 'any' check (available_days in ('any', 'weekdays', 'weekends')),
   kind text not null default 'chore' check (kind in ('chore', 'goal', 'challenge')),
+  available_time text not null default 'any' check (available_time in ('any', 'morning', 'evening')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

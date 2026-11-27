@@ -4,7 +4,7 @@ import RefreshButton from './RefreshButton'
 import Avatar from './Avatar'
 import PetPage from './PetPage'
 import PetHomeCard from './PetHomeCard'
-import { CHORE_KINDS } from '../lib/choreKinds'
+import { CHORE_KINDS, CHORE_TIMES, outsideChoreTime } from '../lib/choreKinds'
 import { uploadAvatar } from '../lib/avatar'
 
 // Shown to a child on their own device. When `childId` is given, a signed-in parent
@@ -25,6 +25,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [doneTodayIds, setDoneTodayIds] = useState(new Set())
   const [onceDoneIds, setOnceDoneIds] = useState(new Set()) // one-time chores completed by anyone
   const [, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
+  const [takenIds, setTakenIds] = useState(new Set()) // up-for-grabs chores another child already has
   const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
   const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
   const [bonuses, setBonuses] = useState([]) // bonus messages not yet dismissed
@@ -85,6 +86,12 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       .or(`status.eq.pending,and(status.eq.denied,resolved_at.gte.${startOfToday.toISOString()})`)
     setPendingIds(new Set((subs || []).filter(x => x.status === 'pending').map(x => x.chore_id)))
     setDeniedToday(Object.fromEntries((subs || []).filter(x => x.status === 'denied').map(x => [x.chore_id, x.note || ''])))
+
+    // Up-for-grabs chores another child has already sent in or finished today
+    if (!actingAsParent) {
+      const { data: taken } = await supabase.rpc('chore_taken_ids')
+      setTakenIds(new Set(taken || []))
+    }
 
     // Bonus messages from a parent (only on the child's own device, not parent mode)
     if (!actingAsParent) {
@@ -250,7 +257,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
           <div className="space-y-3">
-            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id))).map(chore => (
+            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id)) && !takenIds.has(chore.id)).map(chore => (
               <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
                 <div className="flex justify-between items-center">
                   <div className="flex-1">
@@ -268,7 +275,11 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                       </p>
                     )}
                   </div>
-                  {unavailableToday(chore) && !actingAsParent ? (
+                  {outsideChoreTime(chore.available_time) && !actingAsParent ? (
+                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
+                      {CHORE_TIMES[chore.available_time].short}
+                    </span>
+                  ) : unavailableToday(chore) && !actingAsParent ? (
                     <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
                       {chore.available_days === 'weekdays' ? 'Weekdays only' : 'Weekends only'}
                     </span>
