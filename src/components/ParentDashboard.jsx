@@ -473,6 +473,55 @@ function BonusAward({ child, onSaved }) {
   )
 }
 
+function PetTokenAward({ child }) {
+  const [amount, setAmount] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const award = async (e) => {
+    e.preventDefault()
+    const n = parseInt(amount, 10)
+    if (Number.isNaN(n) || n < 1) {
+      alert('Enter 1 or more Pet Tokens')
+      return
+    }
+    if (!window.confirm(`Award ${n} Pet Token${n === 1 ? '' : 's'} to ${child.display_name}?`)) return
+    setSaving(true)
+    const { error } = await supabase.rpc('award_pet_tokens', { p_child_id: child.id, p_amount: n })
+    setSaving(false)
+    if (error) {
+      alert('Failed to award Pet Tokens: ' + error.message)
+      return
+    }
+    setAmount('')
+    alert(`Awarded ${n} Pet Token${n === 1 ? '' : 's'} to ${child.display_name} 🐾`)
+  }
+
+  return (
+    <form onSubmit={award} className="mt-3 pt-3 border-t space-y-2">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Award Pet Tokens 🐾</p>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          min="1"
+          max="1000"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Pet Tokens"
+          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg"
+          required
+        />
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-4 py-2 bg-sage-600 text-white rounded-lg text-sm font-semibold hover:bg-sage-700 disabled:opacity-50"
+        >
+          {saving ? '...' : 'Award'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function ChildHistory({ child }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
@@ -577,6 +626,7 @@ function ChildrenTab({ onViewChild }) {
                   Open {child.display_name}'s page (complete chores for them)
                 </button>
                 <BonusAward child={child} onSaved={loadChildren} />
+                <PetTokenAward child={child} />
                 <BalanceOverride child={child} onSaved={loadChildren} />
                 <ChildHistory child={child} />
               </>

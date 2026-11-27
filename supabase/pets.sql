@@ -583,6 +583,29 @@ revoke execute on function public.unequip_pet_slot(text) from public, anon;
 grant execute on function public.unequip_pet_slot(text) to authenticated;
 
 -- ============================================
+-- Parents award Pet Tokens directly
+-- ============================================
+-- Gives Pet Tokens only (no regular tokens). Test-mode mirrors are credited too.
+create or replace function public.award_pet_tokens(p_child_id uuid, p_amount int)
+returns void as $$
+begin
+  if not is_parent() then
+    raise exception 'Only parents can award Pet Tokens';
+  end if;
+  if p_amount is null or p_amount < 1 or p_amount > 1000 then
+    raise exception 'Enter between 1 and 1000 Pet Tokens';
+  end if;
+  if not exists (select 1 from profiles where id = p_child_id and role = 'child') then
+    raise exception 'Child not found';
+  end if;
+  perform public._credit_pet_tokens(p_child_id, p_amount);
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke execute on function public.award_pet_tokens(uuid, int) from public, anon;
+grant execute on function public.award_pet_tokens(uuid, int) to authenticated;
+
+-- ============================================
 -- Parent test mode: "Dad" mirrors Emerson
 -- ============================================
 -- Matches on display names (case-insensitive). Check it worked with:
