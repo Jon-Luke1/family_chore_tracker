@@ -329,6 +329,17 @@ function RewardsTab() {
     loadRewards()
   }
 
+  const deleteReward = async (reward) => {
+    if (!window.confirm(`Delete "${reward.name}"? This can't be undone.`)) return
+    const { error } = await supabase.from('rewards').delete().eq('id', reward.id)
+    if (error) {
+      alert('Failed to delete reward: ' + error.message)
+      return
+    }
+    if (editingId === reward.id) closeForm()
+    loadRewards()
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -389,6 +400,9 @@ function RewardsTab() {
                 </button>
                 <button onClick={() => startEdit(reward)} className="px-3 py-1 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
                   Edit
+                </button>
+                <button onClick={() => deleteReward(reward)} className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100">
+                  Delete
                 </button>
               </div>
             </div>
