@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import RefreshButton from './RefreshButton'
 import Avatar from './Avatar'
+import PetPage from './PetPage'
 import { uploadAvatar } from '../lib/avatar'
 
 // Shown to a child on their own device. When `childId` is given, a signed-in parent
@@ -27,6 +28,9 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [bonuses, setBonuses] = useState([]) // bonus messages not yet dismissed
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [uploading, setUploading] = useState(false)
+  const [section, setSection] = useState('chores') // 'chores' | 'pet'
+  const [petReady, setPetReady] = useState(false) // false until the pets database setup exists
+  const [petTokens, setPetTokens] = useState(0)
 
   useEffect(() => {
     if (childId) {
@@ -82,6 +86,11 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
 
     // Bonus messages from a parent (only on the child's own device, not parent mode)
     if (!actingAsParent) {
+      const { data: wallet, error: walletError } = await supabase
+        .from('pet_wallets').select('tokens').eq('owner_id', userId).maybeSingle()
+      setPetReady(!walletError)
+      setPetTokens(wallet?.tokens || 0)
+
       const { data: bonusData } = await supabase
         .from('bonus_awards')
         .select('id, amount, reason, awarded_by_name')
@@ -172,6 +181,25 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+        {petReady && !actingAsParent && (
+          <div className="flex bg-white rounded-2xl border overflow-hidden">
+            {[
+              { key: 'chores', label: 'Chores', icon: '🧹' },
+              { key: 'pet', label: 'My Pet', icon: '🐾' },
+            ].map(t => (
+              <button
+                key={t.key}
+                onClick={() => setSection(t.key)}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                  section === t.key ? 'bg-sage-50 text-forest-800 border-b-2 border-sun-500' : 'text-gray-500'
+                }`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {bonuses.map(b => (
           <div key={b.id} className="bg-sun-100 border border-sun-500 rounded-2xl p-4 flex items-start gap-3">
             <span className="text-2xl">🎉</span>
@@ -185,6 +213,9 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
           </div>
         ))}
 
+        {section === 'pet' && petReady && !actingAsParent ? (
+          <PetPage onTokensChange={setPetTokens} />
+        ) : (<>
         {/* Token balance card */}
         <div className="bg-forest-800 rounded-3xl shadow-md p-6">
           <div className="flex items-center justify-between">
@@ -200,6 +231,15 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
               <p className="text-3xl font-bold text-white font-serif mt-1">{completedToday}</p>
             </div>
           </div>
+          {petReady && !actingAsParent && (
+            <button
+              onClick={() => setSection('pet')}
+              className="mt-4 w-full flex items-center justify-between bg-forest-700 rounded-2xl px-4 py-2 text-sm text-sage-200"
+            >
+              <span>🐾 Pet Tokens: <span className="font-bold text-sun-500">{petTokens}</span></span>
+              <span>Visit your pet →</span>
+            </button>
+          )}
         </div>
 
         {/* Available chores */}
@@ -277,6 +317,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
             {rewards.length === 0 && <p className="text-center text-gray-400 py-6">No rewards available right now</p>}
           </div>
         </div>
+        </>)}
       </main>
     </div>
   )

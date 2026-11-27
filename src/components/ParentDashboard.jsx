@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import RefreshButton from './RefreshButton'
+import PetPage from './PetPage'
 
 // Tab components
 function ChoresTab() {
@@ -660,6 +661,19 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
   const [tab, setTab] = useState('chores')
   const [pending, setPending] = useState([])
   const [pendingLoaded, setPendingLoaded] = useState(false)
+  const [petTest, setPetTest] = useState(null) // names of the children this parent mirrors, if set up for pet test mode
+
+  // Pet test mode only shows up for a parent listed in pet_mirrors (see supabase/pets.sql)
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      const { data: mirrors, error } = await supabase.from('pet_mirrors').select('child_id')
+      if (error || !mirrors?.length) return
+      const { data: kids } = await supabase.from('profiles').select('display_name').in('id', mirrors.map(m => m.child_id))
+      if (alive) setPetTest((kids || []).map(k => k.display_name))
+    })()
+    return () => { alive = false }
+  }, [])
 
   const loadPending = async () => {
     const { data } = await supabase
@@ -700,6 +714,7 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
               { key: 'chores', label: 'Chores', icon: '🧹' },
               { key: 'rewards', label: 'Rewards', icon: '🎁' },
               { key: 'children', label: 'Children', icon: '👧' },
+              ...(petTest ? [{ key: 'pets', label: 'Pet Test', icon: '🐾' }] : []),
             ].map(t => (
               <button
                 key={t.key}
@@ -721,6 +736,9 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
             {tab === 'chores' && <ChoresTab />}
             {tab === 'rewards' && <RewardsTab />}
             {tab === 'children' && <ChildrenTab onViewChild={onViewChild} />}
+            {tab === 'pets' && petTest && (
+              <PetPage banner={`🧪 Pet test mode for ${name || 'you'}: you earn Pet Tokens whenever ${petTest.join(' or ') || 'your child'} does.`} />
+            )}
           </div>
         </div>
       </main>

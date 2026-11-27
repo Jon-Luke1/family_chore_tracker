@@ -94,3 +94,36 @@ main {
   @apply overflow-y-auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Pets */
+@keyframes pet-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes pet-wag {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(12deg); }
+}
+@keyframes pet-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes pet-float {
+  0% { transform: translateY(4px); opacity: 0.2; }
+  35% { opacity: 1; }
+  100% { transform: translateY(-10px); opacity: 0.1; }
+}
+@keyframes pet-pop {
+  0% { transform: translateY(10px) scale(0.6); opacity: 0; }
+  25% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  100% { transform: translateY(-60px) scale(1); opacity: 0; }
+}
+.pet-bob { animation: pet-bob 2.8s ease-in-out infinite; }
+.pet-tail { transform-origin: 146px 160px; animation: pet-wag 1.6s ease-in-out infinite; }
+.pet-eyes { transform-origin: 100px 92px; animation: pet-blink 4.8s infinite; }
+.pet-float { animation: pet-float 2.6s ease-in-out infinite; }
+.pet-float-2 { animation-delay: 1.2s; }
+.pet-pop { animation: pet-pop 1.2s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .pet-bob, .pet-tail, .pet-eyes, .pet-float, .pet-pop { animation: none; }
+}
