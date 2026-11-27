@@ -124,6 +124,53 @@ main {
 .pet-float { animation: pet-float 2.6s ease-in-out infinite; }
 .pet-float-2 { animation-delay: 1.2s; }
 .pet-pop { animation: pet-pop 1.2s ease-out forwards; }
+
+/* Activity animations (feeding, playing, napping, cuddling, bathing) */
+@keyframes pet-chomp {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  25% { transform: translateY(4px) rotate(-2deg); }
+  75% { transform: translateY(4px) rotate(2deg); }
+}
+@keyframes pet-hop {
+  0%, 100% { transform: translateY(0) scale(1.04, 0.94); }
+  40% { transform: translateY(-22px) scale(0.96, 1.05); }
+  70% { transform: translateY(0) scale(1.04, 0.94); }
+}
+@keyframes pet-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03, 1.05); }
+}
+@keyframes pet-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes pet-wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+@keyframes pet-chew {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.45); }
+}
+@keyframes pet-ball {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-34px); }
+}
+@keyframes pet-bite {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-5px) scale(0.85); }
+}
+.pet-chomp { animation: pet-chomp 0.45s ease-in-out infinite; }
+.pet-hop { animation: pet-hop 0.7s ease-in-out infinite; }
+.pet-breathe { animation: pet-breathe 2.2s ease-in-out infinite; }
+.pet-sway { animation: pet-sway 1.2s ease-in-out infinite; }
+.pet-wiggle { animation: pet-wiggle 0.3s ease-in-out infinite; }
+.pet-chew, .pet-ball, .pet-bite { transform-box: fill-box; transform-origin: center; }
+.pet-chew { animation: pet-chew 0.3s ease-in-out infinite; }
+.pet-ball { animation: pet-ball 0.7s ease-out infinite; }
+.pet-bite { animation: pet-bite 0.45s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .pet-bob, .pet-tail, .pet-eyes, .pet-float, .pet-pop { animation: none; }
+  .pet-bob, .pet-tail, .pet-eyes, .pet-float, .pet-pop,
+  .pet-chomp, .pet-hop, .pet-breathe, .pet-sway, .pet-wiggle,
+  .pet-chew, .pet-ball, .pet-bite { animation: none; }
 }

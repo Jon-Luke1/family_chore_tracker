@@ -787,7 +787,7 @@ export default function ParentDashboard({ name, onLogout, onBack, onViewChild })
             {tab === 'rewards' && <RewardsTab />}
             {tab === 'children' && <ChildrenTab onViewChild={onViewChild} />}
             {tab === 'pets' && petTest && (
-              <PetPage banner={`🧪 Pet test mode for ${name || 'you'}: you earn Pet Tokens whenever ${petTest.join(' or ') || 'your child'} does.`} />
+              <PetPage testMode banner={`🧪 Pet test mode for ${name || 'you'}: you earn Pet Tokens whenever ${petTest.join(' or ') || 'your child'} does.`} />
             )}
           </div>
         </div>

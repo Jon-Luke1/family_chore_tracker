@@ -6,6 +6,21 @@ import PetSprite from './PetSprite'
 import { playSound, isMuted, setMuted } from '../lib/petSounds'
 
 const CARE_ACTIONS = ['food', 'treat', 'toy', 'groom', 'bed']
+// What the pet does after each care action, and for how long (ms)
+const ACTIVITY_OF = { food: 'eating', treat: 'snacking', toy: 'playing', groom: 'bathing', bed: 'sleeping' }
+const ACTIVITY_MS = { eating: 3000, snacking: 2600, playing: 3200, bathing: 3000, sleeping: 4000, cuddling: 3200 }
+const ACTIVITY_CLASS = {
+  eating: 'pet-chomp', snacking: 'pet-chomp', playing: 'pet-hop',
+  bathing: 'pet-wiggle', sleeping: 'pet-breathe', cuddling: 'pet-sway',
+}
+const ACTIVITY_TEXT = {
+  eating: (n) => `${n} is munching away...`,
+  snacking: (n) => `${n} is crunching a treat...`,
+  playing: (n) => `${n} is playing!`,
+  bathing: (n) => `${n} is getting squeaky clean...`,
+  sleeping: (n) => `${n} is napping... zzz`,
+  cuddling: (n) => `${n} is cuddling with you!`,
+}
 const CARE_SOUND = { food: 'eat', treat: 'treat', toy: 'toy', groom: 'groom', bed: 'sleep' }
 
 function StatBar({ icon, label, value }) {
@@ -117,7 +132,78 @@ function PetStore({ species, tokens, onAdopt, busy }) {
 }
 
 // `banner` is an optional note shown on top (used by parent test mode)
-export default function PetPage({ onTokensChange, banner }) {
+// Parent test mode only: drag the sliders to set a pet's stats and watch how it reacts
+const TEST_STATS = [
+  { key: 'fullness', icon: '🍗', label: 'Food', param: 'p_fullness' },
+  { key: 'love', icon: '💖', label: 'Love', param: 'p_love' },
+  { key: 'clean', icon: '🫧', label: 'Clean', param: 'p_clean' },
+  { key: 'rest', icon: '💤', label: 'Rest', param: 'p_rest' },
+]
+
+function TestControls({ pet, onChanged }) {
+  const [draft, setDraft] = useState({})
+  const [error, setError] = useState('')
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  // Wait for the slider to settle, then save and refresh
+  const commit = (vals) => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(async () => {
+      const args = Object.fromEntries(TEST_STATS.map(s => [s.param, vals[s.key] ?? null]))
+      const { error: rpcError } = await supabase.rpc('pet_test_set_stats', args)
+      setError(rpcError ? rpcError.message : '')
+      await onChanged()
+      setDraft({})
+    }, 300)
+  }
+  const change = (key, value) => {
+    const next = { ...draft, [key]: value }
+    setDraft(next)
+    commit(next)
+  }
+  const preset = (value) => {
+    const all = Object.fromEntries(TEST_STATS.map(s => [s.key, value]))
+    setDraft(all)
+    commit(all)
+  }
+
+  return (
+    <div className="bg-sun-50 border border-sun-200 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sun-800">🧪 Test controls</p>
+        <div className="flex gap-1.5">
+          {[['Empty', 0], ['Half', 50], ['Full', 100]].map(([label, v]) => (
+            <button key={label} type="button" onClick={() => preset(v)} className="px-2.5 py-1 text-xs bg-white border rounded-lg text-gray-600 active:scale-95">
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {TEST_STATS.map(s => {
+        const value = draft[s.key] ?? Math.round(pet[s.key])
+        return (
+          <label key={s.key} className="flex items-center gap-3 text-sm text-gray-700">
+            <span className="w-16 shrink-0">{s.icon} {s.label}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={value}
+              onChange={e => change(s.key, Number(e.target.value))}
+              className="flex-1 min-w-0 accent-sage-600"
+            />
+            <span className="w-8 text-right tabular-nums text-xs text-gray-500">{value}</span>
+          </label>
+        )
+      })}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <p className="text-xs text-gray-500">Changes save as you drag. Stats drift down from there as normal.</p>
+    </div>
+  )
+}
+
+export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const [status, setStatus] = useState(null)
   const [species, setSpecies] = useState([])
   const [items, setItems] = useState([])
@@ -133,6 +219,9 @@ export default function PetPage({ onTokensChange, banner }) {
   const [soundOff, setSoundOff] = useState(isMuted())
   const toastTimer = useRef(null)
   const greeted = useRef(false)
+  const [activity, setActivity] = useState(null)
+  const activityTimer = useRef(null)
+  const sceneRef = useRef(null)
 
   const loadStatus = useCallback(async () => {
     const { data, error } = await petApi.status()
@@ -171,12 +260,16 @@ export default function PetPage({ onTokensChange, banner }) {
     }
   }, [loadStatus])
 
-  useEffect(() => () => clearTimeout(toastTimer.current), [])
+  useEffect(() => () => {
+    clearTimeout(toastTimer.current)
+    clearTimeout(activityTimer.current)
+  }, [])
 
   const pet = status?.pet || null
   const inventory = status?.inventory || {}
   const tokens = status?.tokens || 0
-  const mood = useMemo(() => petMood(pet), [pet])
+  const baseMood = useMemo(() => petMood(pet), [pet])
+  const mood = activity || baseMood
   const petSpecies = species.find(s => s.id === pet?.species_id)
   const speciesName = petSpecies?.name
 
@@ -204,7 +297,18 @@ export default function PetPage({ onTokensChange, banner }) {
   const playFx = (emoji) => setFx({ emoji, key: Date.now() })
 
   // Runs an action, reports the result, and refreshes. Returns true on success.
-  const run = async (fn, { ok, emoji, sound } = {}) => {
+  const startActivity = (kind) => {
+    setActivity(kind)
+    clearTimeout(activityTimer.current)
+    activityTimer.current = setTimeout(() => setActivity(null), ACTIVITY_MS[kind] || 3000)
+    // Keep the whole pet in view while it plays the animation
+    const box = sceneRef.current?.getBoundingClientRect()
+    if (box && (box.top < 0 || box.bottom > window.innerHeight)) {
+      sceneRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
+  const run = async (fn, { ok, emoji, sound, activity: kind } = {}) => {
     if (busy) return false
     setBusy(true)
     const err = await fn()
@@ -215,6 +319,7 @@ export default function PetPage({ onTokensChange, banner }) {
       if (ok) showToast(ok)
       if (emoji) playFx(emoji)
       if (sound) playSound(sound)
+      if (kind) startActivity(kind)
     }
     await loadStatus()
     setBusy(false)
@@ -226,7 +331,7 @@ export default function PetPage({ onTokensChange, banner }) {
 
   const applyItem = async (item) => {
     const cat = CATEGORY[item.category]
-    const done = await run(() => petApi.use(item.id), { ok: cat.done(pet.name, item.name), emoji: cat.fx, sound: CARE_SOUND[item.category] })
+    const done = await run(() => petApi.use(item.id), { ok: cat.done(pet.name, item.name), emoji: cat.fx, sound: CARE_SOUND[item.category], activity: ACTIVITY_OF[item.category] })
     if (done && cat.consumable && (inventory[item.id] || 0) <= 1) setPicker(null)
   }
 
@@ -239,7 +344,7 @@ export default function PetPage({ onTokensChange, banner }) {
 
   const wear = (item) => run(() => petApi.equip(item.id), { emoji: '✨', sound: 'sparkle' })
   const takeOff = (slot) => run(() => petApi.unequip(slot), { sound: 'take' })
-  const cuddle = () => run(() => petApi.cuddle(), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr' })
+  const cuddle = () => run(() => petApi.cuddle(), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr', activity: 'cuddling' })
 
   const saveName = async () => {
     if (!nameDraft.trim()) return
@@ -282,7 +387,7 @@ export default function PetPage({ onTokensChange, banner }) {
         </button>
       </div>
 
-      {toast && (
+      {toast && !(pet && tab === 'home') && (
         <div
           role="status"
           className={`rounded-xl px-4 py-3 text-sm font-medium text-center ${
@@ -317,7 +422,17 @@ export default function PetPage({ onTokensChange, banner }) {
 
           {tab === 'home' && (
             <div className="space-y-4">
-              <div className="rounded-3xl border bg-gradient-to-b from-sage-100 to-tan-50 p-4 flex flex-col items-center relative overflow-hidden">
+              <div ref={sceneRef} className="rounded-3xl border bg-gradient-to-b from-sage-100 to-tan-50 p-4 flex flex-col items-center relative overflow-hidden scroll-mt-4">
+                {toast && (
+                  <div
+                    role="status"
+                    className={`absolute top-2 inset-x-3 z-10 rounded-xl px-3 py-1.5 text-xs font-medium text-center shadow-sm ${
+                      toast.kind === 'error' ? 'bg-red-50 text-red-700' : 'bg-white/90 text-sage-800'
+                    }`}
+                  >
+                    {toast.text}
+                  </div>
+                )}
                 <div className="relative">
                   <PetSprite
                     species={pet.species_id}
@@ -326,7 +441,7 @@ export default function PetPage({ onTokensChange, banner }) {
                     head={pet.head}
                     face={pet.face}
                     size={230}
-                    className="pet-bob"
+                    className={ACTIVITY_CLASS[activity] || 'pet-bob'}
                   />
                   {fx && (
                     <span key={fx.key} className="pet-pop absolute left-1/2 top-8 -translate-x-1/2 text-4xl pointer-events-none">
@@ -358,14 +473,7 @@ export default function PetPage({ onTokensChange, banner }) {
                   </button>
                 )}
                 <p className="text-xs text-gray-500">{speciesName}</p>
-                <p className="mt-1 text-sm font-medium text-forest-800">{(MOOD_TEXT[mood] || MOOD_TEXT.content)(pet.name)}</p>
-              </div>
-
-              <div className="bg-white rounded-2xl border p-4 space-y-3">
-                <StatBar icon="🍗" label="Food" value={pet.fullness} />
-                <StatBar icon="💖" label="Love" value={pet.love} />
-                <StatBar icon="🫧" label="Clean" value={pet.clean} />
-                <StatBar icon="💤" label="Rest" value={pet.rest} />
+                <p className="mt-1 text-sm font-medium text-forest-800">{(ACTIVITY_TEXT[activity] || MOOD_TEXT[mood] || MOOD_TEXT.content)(pet.name)}</p>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -437,6 +545,14 @@ export default function PetPage({ onTokensChange, banner }) {
                   )}
                 </div>
               )}
+              <div className="bg-white rounded-2xl border p-4 space-y-3">
+                <StatBar icon="🍗" label="Food" value={pet.fullness} />
+                <StatBar icon="💖" label="Love" value={pet.love} />
+                <StatBar icon="🫧" label="Clean" value={pet.clean} />
+                <StatBar icon="💤" label="Rest" value={pet.rest} />
+              </div>
+
+              {testMode && <TestControls pet={pet} onChanged={loadStatus} />}
             </div>
           )}
 

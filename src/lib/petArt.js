@@ -186,14 +186,17 @@ function eyeOpen(a, x, y) {
   return `<ellipse cx="${x}" cy="${y}" rx="${8.2 * big}" ry="${10 * big}" fill="${DARK_EYE}"/>` + hi
 }
 
+// Moods and activities that show closed, smiling eyes
+const HAPPY_EYES = new Set(['happy', 'eating', 'snacking', 'playing', 'cuddling', 'bathing'])
+
 function eyes(a, mood) {
   const xs = [78, 122]
   const y = 92
   let s = `<g class="pet-eyes">`
   for (const x of xs) {
-    if (mood === 'happy') {
+    if (HAPPY_EYES.has(mood)) {
       s += `<path d="M${x - 9} ${y + 3} Q${x} ${y - 11} ${x + 9} ${y + 3}" fill="none" stroke="${DARK_EYE}" stroke-width="4.2" stroke-linecap="round"/>`
-    } else if (mood === 'sleepy') {
+    } else if (mood === 'sleepy' || mood === 'sleeping') {
       s += `<path d="M${x - 8.5} ${y} Q${x} ${y + 7} ${x + 8.5} ${y}" fill="none" stroke="${DARK_EYE}" stroke-width="3.6" stroke-linecap="round"/>`
     } else {
       s += eyeOpen(a, x, y)
@@ -215,7 +218,13 @@ function mouth(a, mood) {
   const cat = a.kind === 'cat'
   const scale = cat ? 'translate(100 108) scale(.82) translate(-100 -108)' : ''
   let m
-  if (mood === 'happy') {
+  if (mood === 'eating' || mood === 'snacking') {
+    m = `<g class="pet-chew"><ellipse cx="100" cy="120" rx="9" ry="8" fill="#7a2b36" stroke="${OUT}" stroke-width="2.6"/>` +
+      `<ellipse cx="100" cy="125" rx="5" ry="3" fill="#ff8fa3"/></g>`
+  } else if (mood === 'sleeping') {
+    m = `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>` +
+      `<path d="M94 118 Q100 122 106 118" fill="none" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>`
+  } else if (mood === 'happy' || mood === 'playing' || mood === 'cuddling' || mood === 'bathing') {
     m = `<path d="M87 111 Q100 138 113 111 Q100 116 87 111Z" fill="#7a2b36" stroke="${OUT}" stroke-width="2.6" stroke-linejoin="round"/>` +
       `<path d="M93 122 Q100 134 107 122 Q100 117 93 122Z" fill="#ff8fa3"/>`
   } else if (mood === 'hungry') {
@@ -233,9 +242,36 @@ function mouth(a, mood) {
   return scale ? `<g transform="${scale}">${m}</g>` : m
 }
 
+const BLUSH = `<ellipse cx="62" cy="110" rx="8" ry="5.5" fill="#ff8aa0" opacity="0.5"/><ellipse cx="138" cy="110" rx="8" ry="5.5" fill="#ff8aa0" opacity="0.5"/>`
+
 function overlays(a, mood) {
   let s = ''
-  if (mood === 'happy') {
+  if (mood === 'eating' || mood === 'snacking') {
+    s += BLUSH
+    s += `<text class="pet-bite" x="100" y="156" font-size="30" text-anchor="middle">${mood === 'eating' ? '🍗' : '🦴'}</text>`
+    s += `<circle class="pet-float" cx="76" cy="132" r="2.4" fill="#d9a35b"/><circle class="pet-float pet-float-2" cx="126" cy="136" r="2.2" fill="#d9a35b"/>`
+  } else if (mood === 'playing') {
+    s += BLUSH
+    s += `<text class="pet-ball" x="160" y="182" font-size="30" text-anchor="middle">🎾</text>`
+    s += heart(40, 48, 1.1, '#ffd552', 'pet-float') + heart(168, 60, 1, '#7be0a8', 'pet-float pet-float-2')
+  } else if (mood === 'sleeping') {
+    s += `<path d="M50 156 Q100 146 150 156 L152 190 Q100 198 48 190 Z" fill="#8fb8ff" stroke="${OUT}" stroke-width="3" stroke-linejoin="round"/>`
+    s += `<path d="M52 168 Q100 160 148 168 M51 180 Q100 172 149 180" fill="none" stroke="#fff" stroke-width="3" opacity="0.6"/>`
+    s += `<text class="pet-float" x="150" y="46" font-size="26" font-weight="700" fill="#6f7fb0" font-family="sans-serif">Z</text>`
+    s += `<text class="pet-float pet-float-2" x="170" y="28" font-size="18" font-weight="700" fill="#6f7fb0" font-family="sans-serif">z</text>`
+    s += `<text x="26" y="40" font-size="22">🌙</text>`
+  } else if (mood === 'cuddling') {
+    s += BLUSH
+    s += heart(166, 56, 1.6, '#ff5c7c', 'pet-float') + heart(30, 66, 1.3, '#ff8fa3', 'pet-float pet-float-2') + heart(100, 22, 1.1, '#ff5c7c', 'pet-float')
+  } else if (mood === 'bathing') {
+    s += BLUSH
+    for (const [x, y, r] of [[78, 52, 11], [100, 44, 13], [122, 52, 11], [90, 40, 8], [112, 38, 8]]) {
+      s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="#bfe3f5" stroke-width="2"/>`
+    }
+    for (const [x, y, r, c] of [[34, 120, 9, ''], [168, 108, 7, 'pet-float-2'], [42, 160, 6, 'pet-float-2'], [160, 150, 10, ''], [24, 84, 5, '']]) {
+      s += `<circle class="pet-float ${c}" cx="${x}" cy="${y}" r="${r}" fill="#dff3fc" stroke="#7cc7f2" stroke-width="2"/>`
+    }
+  } else if (mood === 'happy') {
     s += `<ellipse cx="62" cy="110" rx="8" ry="5.5" fill="#ff8aa0" opacity="0.5"/><ellipse cx="138" cy="110" rx="8" ry="5.5" fill="#ff8aa0" opacity="0.5"/>`
     s += heart(166, 52, 1.5, '#ff5c7c', 'pet-float') + heart(30, 66, 1.1, '#ff8fa3', 'pet-float pet-float-2')
   } else if (mood === 'hungry') {
