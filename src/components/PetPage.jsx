@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase'
 import { petMood } from '../lib/petArt'
 import { CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, describeEffects, petApi } from '../lib/pets'
 import PetSprite from './PetSprite'
+import { playSound, isMuted, setMuted } from '../lib/petSounds'
 
 const CARE_ACTIONS = ['food', 'treat', 'toy', 'groom', 'bed']
+const CARE_SOUND = { food: 'eat', treat: 'treat', toy: 'toy', groom: 'groom', bed: 'sleep' }
 
 function StatBar({ icon, label, value }) {
   const v = Math.round(value)
@@ -128,7 +130,9 @@ export default function PetPage({ onTokensChange, banner }) {
   const [fx, setFx] = useState(null)
   const [renaming, setRenaming] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
+  const [soundOff, setSoundOff] = useState(isMuted())
   const toastTimer = useRef(null)
+  const greeted = useRef(false)
 
   const loadStatus = useCallback(async () => {
     const { data, error } = await petApi.status()
@@ -173,7 +177,23 @@ export default function PetPage({ onTokensChange, banner }) {
   const inventory = status?.inventory || {}
   const tokens = status?.tokens || 0
   const mood = useMemo(() => petMood(pet), [pet])
-  const speciesName = species.find(s => s.id === pet?.species_id)?.name
+  const petSpecies = species.find(s => s.id === pet?.species_id)
+  const speciesName = petSpecies?.name
+
+  // The pet says hello the first time it's seen after opening the page
+  useEffect(() => {
+    if (petSpecies && !greeted.current) {
+      greeted.current = true
+      playSound('greet', petSpecies.kind)
+    }
+  }, [petSpecies])
+
+  const toggleSound = () => {
+    const next = !soundOff
+    setMuted(next)
+    setSoundOff(next)
+    if (!next) playSound('tap')
+  }
 
   const showToast = (text, kind = 'ok') => {
     setToast({ text, kind })
@@ -184,15 +204,17 @@ export default function PetPage({ onTokensChange, banner }) {
   const playFx = (emoji) => setFx({ emoji, key: Date.now() })
 
   // Runs an action, reports the result, and refreshes. Returns true on success.
-  const run = async (fn, { ok, emoji } = {}) => {
+  const run = async (fn, { ok, emoji, sound } = {}) => {
     if (busy) return false
     setBusy(true)
     const err = await fn()
     if (err) {
       showToast(err, 'error')
+      playSound('error')
     } else {
       if (ok) showToast(ok)
       if (emoji) playFx(emoji)
+      if (sound) playSound(sound)
     }
     await loadStatus()
     setBusy(false)
@@ -200,11 +222,11 @@ export default function PetPage({ onTokensChange, banner }) {
   }
 
   const adopt = (sp, name) =>
-    run(() => petApi.adopt(sp.id, name), { ok: `Welcome home, ${name.trim()}! 🎉`, emoji: '🎉' })
+    run(() => petApi.adopt(sp.id, name), { ok: `Welcome home, ${name.trim()}! 🎉`, emoji: '🎉', sound: 'adopt' })
 
   const applyItem = async (item) => {
     const cat = CATEGORY[item.category]
-    const done = await run(() => petApi.use(item.id), { ok: cat.done(pet.name, item.name), emoji: cat.fx })
+    const done = await run(() => petApi.use(item.id), { ok: cat.done(pet.name, item.name), emoji: cat.fx, sound: CARE_SOUND[item.category] })
     if (done && cat.consumable && (inventory[item.id] || 0) <= 1) setPicker(null)
   }
 
@@ -212,15 +234,16 @@ export default function PetPage({ onTokensChange, banner }) {
     run(() => petApi.buy(item.id), {
       ok: CATEGORY[item.category].slot ? `Bought ${item.name}! Wear it from your Bag.` : `Bought ${item.name}!`,
       emoji: '🛍️',
+      sound: 'buy',
     })
 
-  const wear = (item) => run(() => petApi.equip(item.id), { emoji: '✨' })
-  const takeOff = (slot) => run(() => petApi.unequip(slot))
-  const cuddle = () => run(() => petApi.cuddle(), { ok: `${pet.name} loves cuddles!`, emoji: '🥰' })
+  const wear = (item) => run(() => petApi.equip(item.id), { emoji: '✨', sound: 'sparkle' })
+  const takeOff = (slot) => run(() => petApi.unequip(slot), { sound: 'take' })
+  const cuddle = () => run(() => petApi.cuddle(), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr' })
 
   const saveName = async () => {
     if (!nameDraft.trim()) return
-    if (await run(() => petApi.rename(nameDraft), { ok: 'New name saved!' })) setRenaming(false)
+    if (await run(() => petApi.rename(nameDraft), { ok: 'New name saved!', sound: 'save' })) setRenaming(false)
   }
 
   if (loadError) {
@@ -247,6 +270,17 @@ export default function PetPage({ onTokensChange, banner }) {
       )}
 
       <PetTokens tokens={tokens} />
+
+      <div className="flex justify-end -mt-3">
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-pressed={!soundOff}
+          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+        >
+          {soundOff ? '🔇 Sounds off' : '🔊 Sounds on'}
+        </button>
+      </div>
 
       {toast && (
         <div
