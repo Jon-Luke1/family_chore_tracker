@@ -186,11 +186,6 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
           <span className="ml-4 px-4 py-2 bg-sun-100 text-sun-700 rounded-xl text-sm font-medium text-center">
             Sent for confirmation ⏳
           </span>
-        ) : (chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
-         (chore.frequency === 'once' && onceDone(chore)) ? (
-          <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
-            {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
-          </span>
         ) : (
           <div className="ml-4 flex flex-col items-end gap-1">
             {pendingIds.has(chore.id) && (
@@ -312,14 +307,22 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
 
         {/* Available chores, then goals and challenges below them */}
         {(() => {
-          const visible = chores.filter(chore => !(chore.frequency === 'once' && onceDone(chore)) && !takenIds.has(chore.id))
+          // Finished chores clear off the list: one-time chores for good, daily chores until tomorrow
+          const visible = chores.filter(chore =>
+            !(chore.frequency === 'once' && onceDone(chore)) &&
+            !(chore.frequency === 'daily' && doneTodayIds.has(chore.id)) &&
+            !takenIds.has(chore.id))
           const choresList = visible.filter(c => !c.kind || c.kind === 'chore')
           return (<>
             <div>
               <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
               <div className="space-y-3">
                 {choresList.map(renderChore)}
-                {choresList.length === 0 && <p className="text-center text-gray-400 py-6">No chores available right now</p>}
+                {choresList.length === 0 && (
+                  <p className="text-center text-gray-400 py-6">
+                    {completedToday > 0 ? 'All done for now! 🎉' : 'No chores available right now'}
+                  </p>
+                )}
               </div>
             </div>
             {['goal', 'challenge'].map(kind => {
