@@ -155,6 +155,59 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
     await loadAll(user.id)
   }
 
+  // One chore, goal or challenge card
+  const renderChore = (chore) => (
+    <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
+      <div className="flex justify-between items-center">
+        <div className="flex-1">
+          <h4 className="font-medium text-gray-800">{chore.name}</h4>
+          {chore.kind && chore.kind !== 'chore' && CHORE_KINDS[chore.kind] && (
+            <span className={`text-xs px-2 py-1 rounded-full font-medium mt-1 mr-1 inline-block ${CHORE_KINDS[chore.kind].badge}`}>
+              {CHORE_KINDS[chore.kind].icon} {CHORE_KINDS[chore.kind].label}
+            </span>
+          )}
+          {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
+          <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
+          {deniedToday[chore.id] !== undefined && !pendingIds.has(chore.id) && (
+            <p className="text-xs text-red-600 mt-2">
+              Not approved this time{deniedToday[chore.id] ? `: ${deniedToday[chore.id]}` : ''}. You can try again.
+            </p>
+          )}
+        </div>
+        {outsideChoreTime(chore.available_time) && !actingAsParent ? (
+          <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
+            {CHORE_TIMES[chore.available_time].short}
+          </span>
+        ) : unavailableToday(chore) && !actingAsParent ? (
+          <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
+            {chore.available_days === 'weekdays' ? 'Weekdays only' : 'Weekends only'}
+          </span>
+        ) : pendingIds.has(chore.id) && !actingAsParent ? (
+          <span className="ml-4 px-4 py-2 bg-sun-100 text-sun-700 rounded-xl text-sm font-medium text-center">
+            Sent for confirmation ⏳
+          </span>
+        ) : (chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
+         (chore.frequency === 'once' && onceDone(chore)) ? (
+          <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
+            {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
+          </span>
+        ) : (
+          <div className="ml-4 flex flex-col items-end gap-1">
+            {pendingIds.has(chore.id) && (
+              <span className="text-xs text-sun-700">Sent for confirmation ⏳</span>
+            )}
+            <button
+              onClick={() => completeChore(chore)}
+              className="px-5 py-2 bg-sage-600 text-white rounded-full text-sm font-semibold tracking-wide hover:bg-sage-700 active:scale-95 transition-all"
+            >
+              Done ✓
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-cream">
       {/* Header with balance */}
@@ -257,64 +310,30 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
 
         {petReady && <PetHomeCard onOpen={() => setSection('pet')} childId={actingAsParent ? childId : null} />}
 
-        {/* Available chores */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
-          <div className="space-y-3">
-            {chores.filter(chore => !(chore.frequency === 'once' && onceDone(chore)) && !takenIds.has(chore.id)).map(chore => (
-              <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
-                <div className="flex justify-between items-center">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-800">{chore.name}</h4>
-                    {chore.kind && chore.kind !== 'chore' && CHORE_KINDS[chore.kind] && (
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium mt-1 mr-1 inline-block ${CHORE_KINDS[chore.kind].badge}`}>
-                        {CHORE_KINDS[chore.kind].icon} {CHORE_KINDS[chore.kind].label}
-                      </span>
-                    )}
-                    {chore.description && <p className="text-sm text-gray-500 mt-1">{chore.description}</p>}
-                    <span className="text-xs px-2 py-1 bg-sun-100 text-sun-700 rounded-full mt-2 inline-block">+{chore.token_reward} tokens</span>
-                    {deniedToday[chore.id] !== undefined && !pendingIds.has(chore.id) && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Not approved this time{deniedToday[chore.id] ? `: ${deniedToday[chore.id]}` : ''}. You can try again.
-                      </p>
-                    )}
-                  </div>
-                  {outsideChoreTime(chore.available_time) && !actingAsParent ? (
-                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
-                      {CHORE_TIMES[chore.available_time].short}
-                    </span>
-                  ) : unavailableToday(chore) && !actingAsParent ? (
-                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium text-center">
-                      {chore.available_days === 'weekdays' ? 'Weekdays only' : 'Weekends only'}
-                    </span>
-                  ) : pendingIds.has(chore.id) && !actingAsParent ? (
-                    <span className="ml-4 px-4 py-2 bg-sun-100 text-sun-700 rounded-xl text-sm font-medium text-center">
-                      Sent for confirmation ⏳
-                    </span>
-                  ) : (chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
-                   (chore.frequency === 'once' && onceDone(chore)) ? (
-                    <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
-                      {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
-                    </span>
-                  ) : (
-                    <div className="ml-4 flex flex-col items-end gap-1">
-                      {pendingIds.has(chore.id) && (
-                        <span className="text-xs text-sun-700">Sent for confirmation ⏳</span>
-                      )}
-                      <button
-                        onClick={() => completeChore(chore)}
-                        className="px-5 py-2 bg-sage-600 text-white rounded-full text-sm font-semibold tracking-wide hover:bg-sage-700 active:scale-95 transition-all"
-                      >
-                        Done ✓
-                      </button>
-                    </div>
-                  )}
-                </div>
+        {/* Available chores, then goals and challenges below them */}
+        {(() => {
+          const visible = chores.filter(chore => !(chore.frequency === 'once' && onceDone(chore)) && !takenIds.has(chore.id))
+          const choresList = visible.filter(c => !c.kind || c.kind === 'chore')
+          return (<>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
+              <div className="space-y-3">
+                {choresList.map(renderChore)}
+                {choresList.length === 0 && <p className="text-center text-gray-400 py-6">No chores available right now</p>}
               </div>
-            ))}
-            {chores.length === 0 && <p className="text-center text-gray-400 py-6">No chores available right now</p>}
-          </div>
-        </div>
+            </div>
+            {['goal', 'challenge'].map(kind => {
+              const list = visible.filter(c => c.kind === kind)
+              if (list.length === 0) return null
+              return (
+                <div key={kind}>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">{CHORE_KINDS[kind].icon} {CHORE_KINDS[kind].label}s</h3>
+                  <div className="space-y-3">{list.map(renderChore)}</div>
+                </div>
+              )
+            })}
+          </>)
+        })()}
 
         {/* Rewards catalog */}
         <div>
