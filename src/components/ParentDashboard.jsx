@@ -21,9 +21,15 @@ function ChoresTab() {
   const loadChores = async () => {
     const { data } = await supabase.from('chores').select('*').order('created_at', { ascending: false })
     // One-time chores clear themselves once completed (history stays in completed_tasks)
-    const { data: done } = await supabase.from('completed_tasks').select('chore_id').not('chore_id', 'is', null)
-    const doneIds = new Set((done || []).map(d => d.chore_id))
-    setChores((data || []).filter(c => !(c.frequency === 'once' && doneIds.has(c.id))))
+    // A chore assigned to every child clears once each of them has done it.
+    const { data: done } = await supabase.from('completed_tasks').select('chore_id, child_id').not('chore_id', 'is', null)
+    const { data: kids } = await supabase.from('profiles').select('id').eq('role', 'child')
+    const doneBy = {}
+    for (const d of done || []) (doneBy[d.chore_id] ||= new Set()).add(d.child_id)
+    const finished = (c) => c.assign_all
+      ? (kids || []).length > 0 && (kids || []).every(k => doneBy[c.id]?.has(k.id))
+      : Boolean(doneBy[c.id])
+    setChores((data || []).filter(c => !(c.frequency === 'once' && finished(c))))
   }
 
   const loadChildren = async () => {
@@ -46,7 +52,7 @@ function ChoresTab() {
       description: chore.description || '',
       token_reward: chore.token_reward,
       frequency: chore.frequency,
-      assigned_to: chore.assigned_to || '',
+      assigned_to: chore.assign_all ? 'all' : (chore.assigned_to || ''),
       available_days: chore.available_days || 'any',
       kind: chore.kind || 'chore',
       available_time: chore.available_time || 'any',
@@ -63,7 +69,9 @@ function ChoresTab() {
 
     const choreData = {
       ...newChore,
-      assigned_to: newChore.assigned_to || null,
+      // "all" = every child, each completing it on their own
+      assigned_to: newChore.assigned_to && newChore.assigned_to !== 'all' ? newChore.assigned_to : null,
+      assign_all: newChore.assigned_to === 'all',
     }
 
     const { error } = editingId
@@ -190,7 +198,10 @@ function ChoresTab() {
               onChange={(e) => setNewChore({ ...newChore, assigned_to: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg"
             >
-              <option value="">Up for grabs (any child)</option>
+              <option value="">Up for grabs (first child to do it)</option>
+              {children.length > 1 && (
+                <option value="all">{children.map(c => c.display_name).join(' & ')} (each does it separately)</option>
+              )}
               {children.map(c => (
                 <option key={c.id} value={c.id}>{c.display_name}</option>
               ))}
@@ -227,7 +238,11 @@ function ChoresTab() {
                   {CHORE_TIMES[chore.available_time]?.short && (
                     <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">{CHORE_TIMES[chore.available_time].short}</span>
                   )}
-                  {chore.assigned_to ? (
+                  {chore.assign_all ? (
+                    <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">
+                      Assigned: {children.map(c => c.display_name).join(' & ') || 'everyone'}, each separately
+                    </span>
+                  ) : chore.assigned_to ? (
                     <span className="text-xs px-2 py-1 bg-tan-100 text-tan-700 rounded-full">
                       Assigned: {children.find(c => c.id === chore.assigned_to)?.display_name || 'Unknown'}
                     </span>

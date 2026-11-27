@@ -14,7 +14,9 @@
     --    big bonus. Pets level up to 30 and pay out bonus Pet Tokens for each new level.
     --  * A pet's stats (food, love, clean, rest) fall slowly over real time. They are
     --    computed from the time of the last care action, so no scheduled job is needed.
-    --    Pets never die: a neglected pet is just sad until you look after it.
+    --  * Pets can die. When two or more bars hit 0 the pet gets very sick. If that is not fixed
+    --    within 2 days (fewer than two bars at 0 again) it dies. A dead pet can be revived for
+    --    the price it was adopted for. See _pet_tick and revive_pet.
     --  * Opening the pet page ("checking in") pays 5 Pet Tokens, at most once an hour.
     --  * Seasonal items (pet_items.season) are only on sale during their season, e.g. Christmas
     --    from Nov 20 to Jan 6 (see _active_seasons). Items already bought stay usable all year.
@@ -107,6 +109,10 @@
     alter table pets add column if not exists xp int not null default 0;
     alter table pets add column if not exists level int not null default 1;
     alter table pets add column if not exists care_since timestamptz;
+    -- Since when two or more bars have been at 0 (very sick); null while healthy
+    alter table pets add column if not exists critical_since timestamptz;
+    -- When the pet died (null while alive). A dead pet doesn't change until it is revived.
+    alter table pets add column if not exists died_at timestamptz;
     do $$
     declare
       v_pk text;
@@ -450,10 +456,16 @@
       v_end timestamptz;
       v_days int;
       v_care timestamptz;
+      v_zero2 numeric;
+      v_crit timestamptz;
+      v_died timestamptz;
     begin
       select * into v_pet from pets where id = p_pet_id and owner_id = p_owner for update;
       if not found then
         raise exception 'Pet not found';
+      end if;
+      if v_pet.died_at is not null then
+        return v_pet; -- nothing changes until the pet is revived
       end if;
       v_hours := greatest(extract(epoch from (now() - v_pet.stats_at)) / 3600.0, 0);
       v_care := v_pet.care_since;
@@ -473,17 +485,36 @@
         end if;
       end if;
 
+      -- Very sick: when did the second bar reach 0? (Bars fall in a straight line, so this is exact.)
+      -- If it was not fixed within 2 days the pet dies, at that moment.
+      v_crit := v_pet.critical_since;
+      select z into v_zero2 from unnest(array[
+        v_pet.fullness / 3.0, v_pet.love / 2.0, v_pet.clean / 1.5, v_pet.rest / 2.0]) z
+        order by z offset 1 limit 1;
+      if v_crit is not null and v_zero2 > 0 then
+        v_crit := null; -- fewer than two bars were empty to begin with, so it can't be sick
+      end if;
+      if v_crit is null and v_zero2 <= v_hours then
+        v_crit := v_pet.stats_at + make_interval(secs => 3600 * v_zero2);
+      end if;
+      if v_crit is not null and v_crit + interval '2 days' <= now() then
+        v_died := v_crit + interval '2 days';
+      end if;
+
       update pets
       set fullness = greatest(0, fullness - 3.0 * v_hours),
           love     = greatest(0, love     - 2.0 * v_hours),
           clean    = greatest(0, clean    - 1.5 * v_hours),
           rest     = greatest(0, rest     - 2.0 * v_hours),
           stats_at = now(),
-          care_since = v_care
+          care_since = case when v_died is null then v_care else null end,
+          critical_since = v_crit,
+          died_at = v_died
       where id = v_pet.id
       returning * into v_pet;
 
-      if v_pet.care_since is null and least(v_pet.fullness, v_pet.love, v_pet.clean, v_pet.rest) >= 1 then
+      if v_pet.died_at is null and v_pet.care_since is null
+         and least(v_pet.fullness, v_pet.love, v_pet.clean, v_pet.rest) >= 1 then
         update pets set care_since = now() where id = v_pet.id returning * into v_pet;
       end if;
       return v_pet;
@@ -492,12 +523,17 @@
 
     revoke execute on function public._pet_tick(uuid, uuid) from public, anon, authenticated;
 
-    -- After a care action: the good streak starts when every bar is above 0 and ends otherwise
+    -- After a care action: the good streak starts when every bar is above 0 and ends otherwise.
+    -- The pet is very sick while two or more bars are at 0, and recovers as soon as that is no longer true.
     create or replace function public._pet_settle_streak(p_pet_id uuid)
     returns void as $$
     begin
       update pets
-      set care_since = case when least(fullness, love, clean, rest) >= 1 then coalesce(care_since, now()) else null end
+      set care_since = case when least(fullness, love, clean, rest) >= 1 then coalesce(care_since, now()) else null end,
+          critical_since = case
+            when (fullness <= 0)::int + (love <= 0)::int + (clean <= 0)::int + (rest <= 0)::int >= 2
+              then coalesce(critical_since, now())
+            else null end
       where id = p_pet_id;
     end;
     $$ language plpgsql security definer set search_path = public;
@@ -526,7 +562,11 @@
         'xp', p.xp,
         'xp_floor', public._xp_total(p.level),
         'xp_next', case when p.level >= 30 then null else public._xp_total(p.level + 1) end,
-        'care_since', p.care_since
+        'care_since', p.care_since,
+        'critical_since', p.critical_since,
+        'dies_at', p.critical_since + interval '2 days',
+        'died_at', p.died_at,
+        'revive_cost', (select cost from pet_species where id = p.species_id)
       );
     $$ language sql stable;
 
@@ -772,6 +812,9 @@
       end if;
 
       v_pet := public._pet_tick(p_pet_id, v_owner);
+      if v_pet.died_at is not null then
+        raise exception '% has passed away. Revive them first.', v_pet.name;
+      end if;
       select tier into v_tier from pet_species where id = v_pet.species_id;
 
       if v_item.for_tier is not null and v_item.for_tier <> v_tier then
@@ -819,6 +862,9 @@
       v_wait int;
     begin
       v_pet := public._pet_tick(p_pet_id, v_owner);
+      if v_pet.died_at is not null then
+        raise exception '% has passed away. Revive them first.', v_pet.name;
+      end if;
       if v_pet.love >= 98 then
         raise exception '% is already full of love', v_pet.name;
       end if;
@@ -897,6 +943,40 @@
     grant execute on function public.unequip_pet_slot(uuid, text) to authenticated;
 
     -- ============================================
+    -- Reviving
+    -- ============================================
+    -- Brings a dead pet back (name, level and clothes are kept) for the price it was adopted for.
+    -- It comes back at 50% on every bar and its good-care streak starts over.
+    create or replace function public.revive_pet(p_pet_id uuid)
+    returns void as $$
+    declare
+      v_owner uuid := public._pet_owner();
+      v_pet pets%rowtype;
+      v_cost int;
+      v_tokens int;
+    begin
+      v_pet := public._pet_tick(p_pet_id, v_owner);
+      if v_pet.died_at is null then
+        raise exception '% does not need reviving', v_pet.name;
+      end if;
+      select cost into v_cost from pet_species where id = v_pet.species_id;
+
+      select tokens into v_tokens from pet_wallets where owner_id = v_owner for update;
+      if v_tokens is null or v_tokens < v_cost then
+        raise exception 'Reviving % costs % Pet Tokens', v_pet.name, v_cost;
+      end if;
+
+      update pet_wallets set tokens = tokens - v_cost, updated_at = now() where owner_id = v_owner;
+      update pets
+      set fullness = 50, love = 50, clean = 50, rest = 50, stats_at = now(),
+          died_at = null, critical_since = null, care_since = now(), last_cuddle_at = null
+      where id = p_pet_id;
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.revive_pet(uuid) from public, anon;
+    grant execute on function public.revive_pet(uuid) to authenticated;
+    -- ============================================
     -- Parents award Pet Tokens directly
     -- ============================================
     -- Gives Pet Tokens only (no regular tokens). Test-mode mirrors are credited too.
@@ -937,7 +1017,8 @@
           love     = least(100, greatest(0, coalesce(p_love, love))),
           clean    = least(100, greatest(0, coalesce(p_clean, clean))),
           rest     = least(100, greatest(0, coalesce(p_rest, rest))),
-          stats_at = now()
+          stats_at = now(),
+          died_at = null -- moving a slider also brings a dead test pet back
       where id = p_pet_id and owner_id = auth.uid();
       if not found then
         raise exception 'Pet not found';
@@ -949,6 +1030,29 @@
     revoke execute on function public.pet_test_set_stats(uuid, numeric, numeric, numeric, numeric) from public, anon;
     grant execute on function public.pet_test_set_stats(uuid, numeric, numeric, numeric, numeric) to authenticated;
 
+    -- Test mode: make a pet very sick (food and love at 0) as if it had been that way for p_hours.
+    -- 47 hours is right before it dies, 48 or more kills it (the next time it is loaded).
+    create or replace function public.pet_test_set_critical(p_pet_id uuid, p_hours numeric)
+    returns void as $$
+    begin
+      if not is_parent() or not exists (select 1 from pet_mirrors where parent_id = auth.uid()) then
+        raise exception 'Pet test mode is not enabled for you';
+      end if;
+      if p_hours is null or p_hours < 0 or p_hours > 500 then
+        raise exception 'Hours must be between 0 and 500';
+      end if;
+      update pets
+      set fullness = 0, love = 0, stats_at = now(), died_at = null, care_since = null,
+          critical_since = now() - make_interval(secs => 3600 * p_hours)
+      where id = p_pet_id and owner_id = auth.uid();
+      if not found then
+        raise exception 'Pet not found';
+      end if;
+    end;
+    $$ language plpgsql security definer set search_path = public;
+
+    revoke execute on function public.pet_test_set_critical(uuid, numeric) from public, anon;
+    grant execute on function public.pet_test_set_critical(uuid, numeric) to authenticated;
     -- Jump a pet to any level (1-30) to see how it looks. No bonus tokens are paid.
     create or replace function public.pet_test_set_level(p_pet_id uuid, p_level int)
     returns void as $$

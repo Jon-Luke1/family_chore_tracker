@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { petMood, ageStage } from '../lib/petArt'
 import {
   CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, KIND_LABEL, SPECIES_TIERS, SEASONS,
-  levelReward, describeEffects, petApi,
+  levelReward, describeEffects, petApi, formatSpan,
 } from '../lib/pets'
 import PetSprite from './PetSprite'
 import { playSound, isMuted, setMuted } from '../lib/petSounds'
@@ -26,6 +26,42 @@ const ACTIVITY_TEXT = {
 }
 const CARE_SOUND = { food: 'eat', treat: 'treat', toy: 'toy', groom: 'groom', bed: 'sleep' }
 const TIER_NOTE = { 1: '🐶🐱 Dogs & cats', 2: '🦎 Exotic pets' }
+
+// Shown while a pet is very sick: two or more bars are empty and the clock is ticking
+function SickBanner({ pet, now }) {
+  const left = new Date(pet.dies_at).getTime() - now
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-2xl p-3 text-sm text-red-800">
+      <p className="font-semibold">⚠️ {pet.name} is very sick!</p>
+      <p className="mt-1">
+        Two or more needs are empty, and {pet.name} may not make it much longer. Look after them within{' '}
+        <span className="font-bold">{formatSpan(left)}</span> by filling the empty bars until only one is left empty.
+      </p>
+    </div>
+  )
+}
+
+// Shown for a pet that has died
+function ReviveBox({ pet, tokens, busy, onRevive }) {
+  const cost = pet.revive_cost
+  return (
+    <div className="bg-gray-50 border rounded-2xl p-4 text-center space-y-2">
+      <p className="font-semibold text-gray-800">💔 {pet.name} passed away</p>
+      <p className="text-sm text-gray-500">
+        {pet.name} wasn&apos;t looked after in time. You can bring them back for what they cost to adopt.
+        Their name, level and clothes will be kept.
+      </p>
+      <button
+        onClick={onRevive}
+        disabled={busy || tokens < cost}
+        className="px-5 py-2 bg-sun-500 text-white rounded-full text-sm font-semibold disabled:opacity-40"
+      >
+        ✨ Revive {pet.name} · 🐾 {cost}
+      </button>
+      {tokens < cost && <p className="text-xs text-gray-400">You need {cost - tokens} more Pet Tokens.</p>}
+    </div>
+  )
+}
 
 // Tells the child when the next check-in bonus is ready
 function CheckinNote({ status }) {
@@ -139,7 +175,7 @@ function PetSwitcher({ pets, selectedId, onSelect, canAdd, onAdd }) {
             p.id === selectedId ? 'border-sun-500 ring-2 ring-sun-200' : ''
           }`}
         >
-          <PetSprite species={p.species_id} mood="happy" level={p.level} size={36} />
+          <PetSprite species={p.species_id} mood={petMood(p)} level={p.level} size={36} />
           <span className="text-sm font-medium text-gray-800">{p.name}</span>
           <span className="text-[10px] text-gray-400">Lv {p.level}</span>
         </button>
@@ -290,6 +326,12 @@ function TestControls({ pet, onChanged }) {
       setLevelDraft(null)
     }, 300)
   }
+  const makeSick = async (hours) => {
+    const { error: rpcError } = await supabase.rpc('pet_test_set_critical', { p_pet_id: pet.id, p_hours: hours })
+    setError(rpcError ? rpcError.message : '')
+    await onChanged()
+    setDraft({})
+  }
   const levelValue = levelDraft ?? pet.level
 
   return (
@@ -333,6 +375,16 @@ function TestControls({ pet, onChanged }) {
         />
         <span className="w-8 text-right tabular-nums text-xs text-gray-500">{levelValue}</span>
       </label>
+      <div className="pt-1 border-t border-sun-200">
+        <p className="text-xs text-gray-600 mb-1.5">🤒 Make {pet.name} very sick, as if it had been that way for:</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {[[0, 'Just now'], [24, '24h'], [47, '47h'], [49, '49h (dies)']].map(([h, label]) => (
+            <button key={h} type="button" onClick={() => makeSick(h)} className="px-2.5 py-1 text-xs bg-white border rounded-lg text-gray-600 active:scale-95">
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <p className="text-xs text-gray-500">Changes save as you drag. Stats drift down from there as normal, and the level slider pays no bonus tokens.</p>
     </div>
@@ -438,7 +490,9 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const tokens = status?.tokens || 0
   const maxPets = status?.max_pets || 5
   const baseMood = useMemo(() => petMood(pet), [pet])
-  const mood = activity || baseMood
+  const dead = Boolean(pet?.died_at)
+  const sick = Boolean(pet?.critical_since) && !dead
+  const mood = dead ? 'dead' : (activity || baseMood)
   const petSpecies = species.find(s => s.id === pet?.species_id)
   const speciesName = petSpecies?.name
   const petTier = petSpecies?.tier || 1
@@ -554,6 +608,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
 
   const wear = (item) => run(() => petApi.equip(pet.id, item.id), { emoji: '✨', sound: 'sparkle' })
   const takeOff = (slot) => run(() => petApi.unequip(pet.id, slot), { sound: 'take' })
+  const revive = () => run(() => petApi.revive(pet.id), { ok: `${pet.name} is back! Take good care of them. 💖`, emoji: '✨', sound: 'adopt' })
   const cuddle = () => run(() => petApi.cuddle(pet.id), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr', activity: 'cuddling' })
 
   const saveName = async () => {
@@ -679,7 +734,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                       face={pet.face}
                       level={pet.level}
                       size={230}
-                      className={ACTIVITY_CLASS[activity] || 'pet-bob'}
+                      className={dead ? '' : (ACTIVITY_CLASS[activity] || 'pet-bob')}
                     />
                     {fx && (
                       <span key={fx.key} className="pet-pop absolute left-1/2 top-8 -translate-x-1/2 text-4xl pointer-events-none">
@@ -715,7 +770,10 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                 <p className="mt-1 text-sm font-medium text-forest-800">{(ACTIVITY_TEXT[activity] || MOOD_TEXT[mood] || MOOD_TEXT.content)(pet.name)}</p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              {sick && <SickBanner pet={pet} now={status.loadedAt} />}
+              {dead && <ReviveBox pet={pet} tokens={tokens} busy={busy} onRevive={revive} />}
+
+              {!dead && <div className="grid grid-cols-3 gap-2">
                 {CARE_ACTIONS.map(key => {
                   const cat = CATEGORY[key]
                   const have = ownedIn(key).reduce((n, i) => n + (cat.consumable ? inventory[i.id] : 1), 0)
@@ -745,9 +803,9 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                     {cuddleWait > 0 ? `${cuddleWait} min` : 'Cuddle'}
                   </span>
                 </button>
-              </div>
+              </div>}
 
-              {picker && (
+              {picker && !dead && (
                 <div className="bg-white rounded-2xl border p-3 space-y-2">
                   <p className="text-sm font-semibold text-gray-700">
                     {CATEGORY[picker].icon} {CATEGORY[picker].verb} {pet.name}

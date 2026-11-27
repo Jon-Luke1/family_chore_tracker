@@ -50,6 +50,19 @@ export const MOOD_TEXT = {
   dirty: (n) => `${n} needs a bath!`,
   sleepy: (n) => `${n} is sleepy.`,
   sad: (n) => `${n} needs some love.`,
+  sick: (n) => `${n} is very sick! 🤒`,
+  dead: (n) => `${n} has passed away. 💔`,
+}
+
+// "1 day 5 hours" / "3 hours" / "20 minutes" for a span of milliseconds
+export function formatSpan(ms) {
+  const mins = Math.max(0, Math.floor(ms / 60000))
+  const days = Math.floor(mins / 1440)
+  const hours = Math.floor((mins % 1440) / 60)
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
+  if (days > 0) return hours > 0 ? `${plural(days, 'day')} ${plural(hours, 'hour')}` : plural(days, 'day')
+  if (hours > 0) return plural(hours, 'hour')
+  return plural(Math.max(1, mins), 'minute')
 }
 
 // "+40 food · +10 love" for an item
@@ -82,5 +95,6 @@ export const petApi = {
   use: (petId, itemId) => call('use_pet_item', { p_pet_id: petId, p_item_id: itemId }),
   cuddle: (petId) => call('pet_cuddle', { p_pet_id: petId }),
   equip: (petId, itemId) => call('equip_pet_item', { p_pet_id: petId, p_item_id: itemId }),
+  revive: (petId) => call('revive_pet', { p_pet_id: petId }),
   unequip: (petId, slot) => call('unequip_pet_slot', { p_pet_id: petId, p_slot: slot }),
 }

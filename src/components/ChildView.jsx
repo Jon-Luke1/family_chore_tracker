@@ -24,7 +24,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
   const [completedToday, setCompletedToday] = useState(0)
   const [doneTodayIds, setDoneTodayIds] = useState(new Set())
   const [onceDoneIds, setOnceDoneIds] = useState(new Set()) // one-time chores completed by anyone
-  const [, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
+  const [myDoneIds, setMyDoneIds] = useState(new Set()) // chores this child has ever completed
   const [takenIds, setTakenIds] = useState(new Set()) // up-for-grabs chores another child already has
   const [pendingIds, setPendingIds] = useState(new Set()) // sent for parent confirmation
   const [deniedToday, setDeniedToday] = useState({}) // chore id -> parent's note (or '')
@@ -136,6 +136,9 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
     if (!reason) return `${b.awarded_by_name} awarded you ${tokens}.`
     return `${b.awarded_by_name} awarded you ${tokens} for ${reason}${/[.!?]$/.test(reason) ? '' : '.'}`
   }
+
+  // One-time chores: gone once done by anyone, or once done by me if every child has their own copy
+  const onceDone = (chore) => (chore.assign_all ? myDoneIds : onceDoneIds).has(chore.id)
 
   const completeChore = async (chore) => {
     if (!user) return
@@ -257,7 +260,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🧹 Available Chores</h3>
           <div className="space-y-3">
-            {chores.filter(chore => !(chore.frequency === 'once' && onceDoneIds.has(chore.id)) && !takenIds.has(chore.id)).map(chore => (
+            {chores.filter(chore => !(chore.frequency === 'once' && onceDone(chore)) && !takenIds.has(chore.id)).map(chore => (
               <div key={chore.id} className="bg-white p-4 rounded-xl shadow-sm border">
                 <div className="flex justify-between items-center">
                   <div className="flex-1">
@@ -288,7 +291,7 @@ export default function ChildView({ displayName, onLogout, childId, onExit }) {
                       Sent for confirmation ⏳
                     </span>
                   ) : (chore.frequency === 'daily' && doneTodayIds.has(chore.id)) ||
-                   (chore.frequency === 'once' && onceDoneIds.has(chore.id)) ? (
+                   (chore.frequency === 'once' && onceDone(chore)) ? (
                     <span className="ml-4 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-medium">
                       {chore.frequency === 'once' ? 'Completed ✓' : 'Done today ✓'}
                     </span>

@@ -201,6 +201,8 @@ function eyes(a, mood) {
   for (const x of xs) {
     if (HAPPY_EYES.has(mood)) {
       s += `<path d="M${x - 9} ${y + 3} Q${x} ${y - 11} ${x + 9} ${y + 3}" fill="none" stroke="${DARK_EYE}" stroke-width="4.2" stroke-linecap="round"/>`
+    } else if (mood === 'dead') {
+      s += `<path d="M${x - 8} ${y - 8} L${x + 8} ${y + 8} M${x + 8} ${y - 8} L${x - 8} ${y + 8}" fill="none" stroke="${DARK_EYE}" stroke-width="4" stroke-linecap="round"/>`
     } else if (mood === 'sleepy' || mood === 'sleeping') {
       s += `<path d="M${x - 8.5} ${y} Q${x} ${y + 7} ${x + 8.5} ${y}" fill="none" stroke="${DARK_EYE}" stroke-width="3.6" stroke-linecap="round"/>`
     } else {
@@ -208,8 +210,8 @@ function eyes(a, mood) {
     }
   }
   s += '</g>'
-  if (mood === 'sad' || mood === 'hungry') {
-    const lift = mood === 'sad' ? 1 : 0.55
+  if (mood === 'sad' || mood === 'hungry' || mood === 'sick') {
+    const lift = mood === 'hungry' ? 0.55 : 1
     s += `<path d="M${xs[0] - 12} ${y - 10} L${xs[0] + 10} ${y - 10 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
     s += `<path d="M${xs[1] + 12} ${y - 10} L${xs[1] - 10} ${y - 10 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
   }
@@ -239,6 +241,12 @@ function mouth(a, mood) {
       `<path d="M93 122 Q100 134 107 122 Q100 117 93 122Z" fill="#ff8fa3"/>`
   } else if (mood === 'hungry') {
     m = `<ellipse cx="100" cy="119" rx="5" ry="6.5" fill="#7a2b36" stroke="${OUT}" stroke-width="2.4"/>`
+  } else if (mood === 'dead') {
+    m = stem +
+      `<path d="M91 119 L109 119" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round"/>`
+  } else if (mood === 'sick') {
+    m = stem +
+      `<path d="M89 120 Q94 114 99 120 Q104 126 111 118" fill="none" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`
   } else if (mood === 'sad') {
     m = stem +
       `<path d="M90 122 Q100 112 110 122" fill="none" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round"/>`
@@ -297,6 +305,17 @@ function overlays(a, mood) {
     for (const [x, y, r] of [[70, 150, 7], [132, 172, 6], [84, 66, 4.5], [140, 138, 5]]) {
       s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#7b5a34" opacity="0.5"/>`
     }
+  } else if (mood === 'sick') {
+    s += `<ellipse cx="100" cy="92" rx="52" ry="42" fill="#8bc34a" opacity="0.2"/>`
+    s += `<ellipse cx="62" cy="108" rx="8" ry="5.5" fill="#9ccc65" opacity="0.7"/><ellipse cx="138" cy="108" rx="8" ry="5.5" fill="#9ccc65" opacity="0.7"/>`
+    s += `<path class="pet-float" d="M150 70 q-6 10 0 14 q6 -4 0 -14Z" fill="#7cc7f2" stroke="#4b9cd3" stroke-width="1.2"/>`
+    s += `<text class="pet-float pet-float-2" x="160" y="44" font-size="26" text-anchor="middle">🤒</text>`
+    s += `<text class="pet-float" x="36" y="60" font-size="18" text-anchor="middle">💧</text>`
+  } else if (mood === 'dead') {
+    s += `<ellipse cx="100" cy="30" rx="30" ry="8" fill="none" stroke="#ffd54a" stroke-width="5"/>`
+    s += `<ellipse cx="100" cy="30" rx="30" ry="8" fill="none" stroke="#fff3b0" stroke-width="1.6" opacity="0.8"/>`
+    s += `<text class="pet-float" x="36" y="64" font-size="18" text-anchor="middle">☁️</text>`
+    s += `<text class="pet-float pet-float-2" x="166" y="56" font-size="16" text-anchor="middle">✨</text>`
   } else if (mood === 'sleepy') {
     s += `<text class="pet-float" x="150" y="46" font-size="26" font-weight="700" fill="#6f7fb0" font-family="sans-serif">Z</text>`
     s += `<text class="pet-float pet-float-2" x="170" y="28" font-size="18" font-weight="700" fill="#6f7fb0" font-family="sans-serif">z</text>`
@@ -449,6 +468,8 @@ function faceItem(id) {
 // Decide how the pet feels from its stats (each 0-100).
 export function petMood(pet) {
   if (!pet) return 'content'
+  if (pet.died_at) return 'dead'
+  if (pet.critical_since) return 'sick'
   const needs = [
     ['hungry', pet.fullness],
     ['dirty', pet.clean],
@@ -498,7 +519,7 @@ export function petSvg({ species, mood = 'content', collar: collarId = null, hea
   const ry = a.headRy || (cat ? 44 : 46)
   const stage = ageStage(level)
 
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-hidden="true">`
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-hidden="true"${mood === 'dead' ? ' style="filter:grayscale(0.85);opacity:0.8"' : ''}>`
   // Everything is scaled from the paws so a baby sits on the ground and just looks smaller
   s += `<g transform="translate(100 193) scale(${stage.scale}) translate(-100 -193)">`
   s += `<ellipse cx="100" cy="193" rx="58" ry="6" fill="#000" opacity="0.14"/>`

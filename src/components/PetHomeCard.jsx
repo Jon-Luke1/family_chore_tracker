@@ -10,6 +10,8 @@ const SHORT_MOOD = {
   dirty: 'Needs a bath',
   sleepy: 'Sleepy',
   sad: 'Needs love',
+  sick: 'Very sick!',
+  dead: 'Passed away',
 }
 
 // A peek at the child's pets on the chores screen: how each one is feeling right now.
@@ -70,7 +72,7 @@ export default function PetHomeCard({ onOpen }) {
               />
               <p className="text-sm font-semibold text-forest-800 truncate max-w-full">{p.name}</p>
               <p className="text-[11px] text-gray-500">Lv {p.level}</p>
-              <p className={`text-xs font-medium ${mood === 'happy' || mood === 'content' ? 'text-sage-700' : 'text-red-600'}`}>
+              <p className={`text-xs font-medium ${mood === 'happy' || mood === 'content' ? 'text-sage-700' : mood === 'dead' ? 'text-gray-500' : 'text-red-600'}`}>
                 {SHORT_MOOD[mood]}
               </p>
             </div>
