@@ -22,6 +22,22 @@ export const TIERS = {
   4: { label: 'Deluxe', badge: 'bg-purple-100 text-purple-700' },
 }
 
+export const MAX_LEVEL = 30
+
+// Pet Tokens paid when a pet reaches a level. Keep in sync with _level_reward in supabase/pets.sql.
+export const levelReward = (level) => 3 + Math.floor(level / 2) + (level % 5 === 0 ? 5 : 0)
+
+export const KIND_LABEL = {
+  dog: '🐶 Dog', cat: '🐱 Cat', bird: '🐦 Bird', lizard: '🦎 Lizard', frog: '🐸 Frog',
+  turtle: '🐢 Turtle', hedgehog: '🦔 Hedgehog', axolotl: '🌸 Axolotl',
+}
+
+// The store groups pets by tier
+export const SPECIES_TIERS = {
+  1: { title: 'Classic pets', note: 'Dogs and cats' },
+  2: { title: 'Exotic pets', note: 'Birds, reptiles and more. They cost extra!' },
+}
+
 export const MOOD_TEXT = {
   happy: (n) => `${n} is happy! 🥰`,
   content: (n) => `${n} is doing okay.`,
@@ -49,11 +65,15 @@ const call = async (fn, args) => {
 
 export const petApi = {
   status: () => supabase.rpc('pet_status'),
-  adopt: (speciesId, name) => call('adopt_pet', { p_species_id: speciesId, p_name: name }),
-  rename: (name) => call('rename_pet', { p_name: name }),
+  // Resolves to { error, data: the new pet's id }
+  adopt: async (speciesId, name) => {
+    const { data, error } = await supabase.rpc('adopt_pet', { p_species_id: speciesId, p_name: name })
+    return { error: error ? error.message : null, data }
+  },
+  rename: (petId, name) => call('rename_pet', { p_pet_id: petId, p_name: name }),
   buy: (itemId) => call('buy_pet_item', { p_item_id: itemId }),
-  use: (itemId) => call('use_pet_item', { p_item_id: itemId }),
-  cuddle: () => call('pet_cuddle'),
-  equip: (itemId) => call('equip_pet_item', { p_item_id: itemId }),
-  unequip: (slot) => call('unequip_pet_slot', { p_slot: slot }),
+  use: (petId, itemId) => call('use_pet_item', { p_pet_id: petId, p_item_id: itemId }),
+  cuddle: (petId) => call('pet_cuddle', { p_pet_id: petId }),
+  equip: (petId, itemId) => call('equip_pet_item', { p_pet_id: petId, p_item_id: itemId }),
+  unequip: (petId, slot) => call('unequip_pet_slot', { p_pet_id: petId, p_slot: slot }),
 }

@@ -3,6 +3,8 @@
 // safe to inject with dangerouslySetInnerHTML. Moods: happy, content, hungry, dirty,
 // sleepy, sad. Accessories are looked up by shop item id (see supabase/pets.sql).
 
+import { EXOTIC_ART, exoticLayers } from './petArtExotic.js'
+
 const OUT = '#3b2f2f' // outline colour
 const DARK_EYE = '#1f1a1a'
 
@@ -49,6 +51,8 @@ export const SPECIES_ART = {
     earInner: '#f7bfc9', nose: '#f08fa0', pattern: 'none', iris: '#62b7cf', whisker: '#9a8f8a',
   },
 }
+
+Object.assign(SPECIES_ART, EXOTIC_ART)
 
 let seq = 0
 
@@ -177,11 +181,12 @@ function whiskers(a) {
 }
 
 function eyeOpen(a, x, y) {
-  const big = a.kind === 'cat' ? 1.08 : 1
+  const slit = a.kind === 'cat' || a.slit
+  const big = slit ? 1.08 : 1
   const hi = `<circle cx="${x - 3}" cy="${y - 4}" r="3.3" fill="#fff"/><circle cx="${x + 3.5}" cy="${y + 3.5}" r="1.6" fill="#fff"/>`
   if (a.iris) {
     return `<ellipse cx="${x}" cy="${y}" rx="${9.5 * big}" ry="${11 * big}" fill="${a.iris}" stroke="${DARK_EYE}" stroke-width="1.5"/>` +
-      `<ellipse cx="${x}" cy="${y + 0.5}" rx="${a.kind === 'cat' ? 3.6 : 5.2}" ry="${7.4 * big}" fill="${DARK_EYE}"/>` + hi
+      `<ellipse cx="${x}" cy="${y + 0.5}" rx="${slit ? 3.6 : 5.2}" ry="${7.4 * big}" fill="${DARK_EYE}"/>` + hi
   }
   return `<ellipse cx="${x}" cy="${y}" rx="${8.2 * big}" ry="${10 * big}" fill="${DARK_EYE}"/>` + hi
 }
@@ -190,8 +195,8 @@ function eyeOpen(a, x, y) {
 const HAPPY_EYES = new Set(['happy', 'eating', 'snacking', 'playing', 'cuddling', 'bathing'])
 
 function eyes(a, mood) {
-  const xs = [78, 122]
-  const y = 92
+  const xs = a.eyeXs || [78, 122]
+  const y = a.eyeY || 92
   let s = `<g class="pet-eyes">`
   for (const x of xs) {
     if (HAPPY_EYES.has(mood)) {
@@ -205,24 +210,29 @@ function eyes(a, mood) {
   s += '</g>'
   if (mood === 'sad' || mood === 'hungry') {
     const lift = mood === 'sad' ? 1 : 0.55
-    s += `<path d="M66 82 L88 ${82 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
-    s += `<path d="M134 82 L112 ${82 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
+    s += `<path d="M${xs[0] - 12} ${y - 10} L${xs[0] + 10} ${y - 10 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
+    s += `<path d="M${xs[1] + 12} ${y - 10} L${xs[1] - 10} ${y - 10 - 9 * lift}" stroke="${OUT}" stroke-width="3" stroke-linecap="round" fill="none"/>`
   }
   if (mood === 'sad') {
-    s += `<path d="M70 106 q-5 9 0 12 q5 -3 0 -12Z" fill="#7cc7f2" stroke="#4b9cd3" stroke-width="1.2"/>`
+    s += `<path d="M${xs[0] - 8} ${y + 14} q-5 9 0 12 q5 -3 0 -12Z" fill="#7cc7f2" stroke="#4b9cd3" stroke-width="1.2"/>`
   }
   return s
 }
 
 function mouth(a, mood) {
+  if (a.noMouth) return ''
   const cat = a.kind === 'cat'
-  const scale = cat ? 'translate(100 108) scale(.82) translate(-100 -108)' : ''
+  const exotic = !!a.exotic
+  const sx = a.mouthW || (cat ? 0.82 : 1)
+  const sy = cat ? 0.82 : 1
+  const scale = sx !== 1 || sy !== 1 ? `translate(100 108) scale(${sx} ${sy}) translate(-100 -108)` : ''
+  const stem = exotic ? '' : `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>`
   let m
   if (mood === 'eating' || mood === 'snacking') {
     m = `<g class="pet-chew"><ellipse cx="100" cy="120" rx="9" ry="8" fill="#7a2b36" stroke="${OUT}" stroke-width="2.6"/>` +
       `<ellipse cx="100" cy="125" rx="5" ry="3" fill="#ff8fa3"/></g>`
   } else if (mood === 'sleeping') {
-    m = `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>` +
+    m = stem +
       `<path d="M94 118 Q100 122 106 118" fill="none" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>`
   } else if (mood === 'happy' || mood === 'playing' || mood === 'cuddling' || mood === 'bathing') {
     m = `<path d="M87 111 Q100 138 113 111 Q100 116 87 111Z" fill="#7a2b36" stroke="${OUT}" stroke-width="2.6" stroke-linejoin="round"/>` +
@@ -230,13 +240,15 @@ function mouth(a, mood) {
   } else if (mood === 'hungry') {
     m = `<ellipse cx="100" cy="119" rx="5" ry="6.5" fill="#7a2b36" stroke="${OUT}" stroke-width="2.4"/>`
   } else if (mood === 'sad') {
-    m = `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>` +
+    m = stem +
       `<path d="M90 122 Q100 112 110 122" fill="none" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round"/>`
   } else if (mood === 'dirty') {
-    m = `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>` +
+    m = stem +
       `<path d="M91 118 L109 118" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round"/>`
+  } else if (exotic) {
+    m = `<path d="M88 114 Q100 124 112 114" fill="none" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round"/>`
   } else {
-    m = `<path d="M100 110 L100 114" stroke="${OUT}" stroke-width="2.6" stroke-linecap="round"/>` +
+    m = stem +
       `<path d="M89 114 Q94.5 121 100 114 Q105.5 121 111 114" fill="none" stroke="${OUT}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`
   }
   return scale ? `<g transform="${scale}">${m}</g>` : m
@@ -393,39 +405,88 @@ export function petMood(pet) {
   return 'content'
 }
 
-export function petSvg({ species, mood = 'content', collar: collarId = null, head = null, face = null, size = '100%' }) {
+// --- Growing up ------------------------------------------------------------
+// Pets look a little older as they level up: small and baby-like at first, nearly full size when
+// grown, and full size with grey eyebrows and a frosty muzzle at the wise stages (level 22+).
+const AGE_STAGES = [
+  { key: 'baby', label: 'Baby', max: 4, scale: 0.78 },
+  { key: 'young', label: 'Young', max: 11, scale: 0.88 },
+  { key: 'grown', label: 'Grown-up', max: 21, scale: 0.96 },
+  { key: 'wise', label: 'Wise', max: 30, scale: 1 },
+]
+
+export function ageStage(level) {
+  return AGE_STAGES.find(st => level <= st.max) || AGE_STAGES[AGE_STAGES.length - 1]
+}
+
+function elderDetails(a, level) {
+  const xs = a.eyeXs || [78, 122]
+  const y = a.eyeY || 92
+  let s = ''
+  for (const x of xs) {
+    s += `<path d="M${x - 10} ${y - 15} Q${x} ${y - 24} ${x + 10} ${y - 13}" fill="none" stroke="#aeabb8" stroke-width="4" stroke-linecap="round"/>`
+  }
+  if (level >= 30) {
+    const star = (x, yy, r) =>
+      `<path d="M${x} ${yy - r} L${x + r * 0.28} ${yy - r * 0.28} L${x + r} ${yy} L${x + r * 0.28} ${yy + r * 0.28} L${x} ${yy + r} L${x - r * 0.28} ${yy + r * 0.28} L${x - r} ${yy} L${x - r * 0.28} ${yy - r * 0.28}Z" fill="#ffd54a" stroke="#fff" stroke-width="1"/>`
+    s += `<g class="pet-float">${star(24, 40, 9)}</g><g class="pet-float pet-float-2">${star(178, 34, 7)}</g><g class="pet-float">${star(36, 150, 6)}</g>`
+  }
+  return s
+}
+
+export function petSvg({ species, mood = 'content', collar: collarId = null, head = null, face = null, size = '100%', level = 15 }) {
   const a = SPECIES_ART[species] || SPECIES_ART['golden-retriever']
   const id = ++seq
   const cat = a.kind === 'cat'
+  const exotic = !!a.exotic
+  const rx = a.headRx || (cat ? 56 : 54)
+  const ry = a.headRy || (cat ? 44 : 46)
+  const stage = ageStage(level)
 
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-hidden="true">`
+  // Everything is scaled from the paws so a baby sits on the ground and just looks smaller
+  s += `<g transform="translate(100 193) scale(${stage.scale}) translate(-100 -193)">`
   s += `<ellipse cx="100" cy="193" rx="58" ry="6" fill="#000" opacity="0.14"/>`
-  s += `<clipPath id="hc${id}"><ellipse cx="100" cy="92" rx="${cat ? 56 : 54}" ry="${cat ? 44 : 46}"/></clipPath>`
-  s += tail(a)
-  s += body(a, id)
+  s += `<clipPath id="hc${id}"><ellipse cx="100" cy="92" rx="${rx}" ry="${ry}"/></clipPath>`
 
-  // Ears behind the head
-  if (a.ear !== 'floppy') {
-    s += earShape(a, 1) + mirror(earShape(a, a.earColor2 ? 2 : 1))
+  let layers = null
+  if (exotic) {
+    layers = exoticLayers(a, id, mood)
+    s += layers.back + layers.body + layers.mid
+  } else {
+    s += tail(a)
+    s += body(a, id)
+    // Ears behind the head
+    if (a.ear !== 'floppy') {
+      s += earShape(a, 1) + mirror(earShape(a, a.earColor2 ? 2 : 1))
+    }
   }
 
-  s += `<ellipse cx="100" cy="92" rx="${cat ? 56 : 54}" ry="${cat ? 44 : 46}" fill="${a.base}" stroke="${OUT}" stroke-width="3"/>`
-  s += headPattern(a, id)
-
-  // Floppy ears hang in front of the head edges
-  if (a.ear === 'floppy') {
-    s += earShape(a, 1) + mirror(earShape(a, 1))
+  s += `<ellipse cx="100" cy="92" rx="${rx}" ry="${ry}" fill="${a.base}" stroke="${OUT}" stroke-width="3"/>`
+  if (exotic) {
+    s += layers.face
+  } else {
+    s += headPattern(a, id)
+    // Floppy ears hang in front of the head edges
+    if (a.ear === 'floppy') {
+      s += earShape(a, 1) + mirror(earShape(a, 1))
+    }
+    s += muzzle(a)
+    if (stage.key === 'wise') s += `<ellipse cx="100" cy="114" rx="24" ry="13" fill="#c9c7d4" opacity="0.35"/>`
+    s += nose(a) + whiskers(a)
   }
 
-  s += muzzle(a) + nose(a) + whiskers(a)
   s += eyes(a, mood)
   s += mouth(a, mood)
+  if (exotic) s += layers.front
   if (mood === 'dirty') {
     s += `<circle cx="64" cy="76" r="4.5" fill="#7b5a34" opacity="0.5"/><circle cx="136" cy="116" r="4" fill="#7b5a34" opacity="0.5"/>`
   }
+  if (stage.key === 'wise') s += elderDetails(a, level)
   s += collar(collarId, id)
-  s += faceItem(face)
+  // Glasses follow the eyes (the frog's sit up on its bumps)
+  s += `<g transform="translate(0 ${(a.eyeY || 92) - 92})">${faceItem(face)}</g>`
   s += headItem(head)
   s += overlays(a, mood)
-  return s + '</svg>'
+  return s + '</g></svg>'
 }

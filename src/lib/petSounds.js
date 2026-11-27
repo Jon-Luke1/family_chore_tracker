@@ -76,6 +76,27 @@ const SOUNDS = {
     tone(c, { freq: 420, slide: 200, at: 0.2, dur: 0.14, type: 'sawtooth', gain: 0.13 })
     noise(c, { at: 0.2, dur: 0.1, freq: 900, q: 0.8, gain: 0.08 })
   },
+  // Cheerful "tweet-tweet"
+  tweet: (c) => {
+    tone(c, { freq: 1500, slide: 2400, dur: 0.07, type: 'sine', gain: 0.1 })
+    tone(c, { freq: 2300, slide: 1700, at: 0.09, dur: 0.07, type: 'sine', gain: 0.1 })
+    tone(c, { freq: 1700, slide: 2600, at: 0.22, dur: 0.09, type: 'sine', gain: 0.1 })
+  },
+  // "Ribbit"
+  ribbit: (c) => {
+    tone(c, { freq: 140, slide: 220, dur: 0.12, type: 'sawtooth', gain: 0.1 })
+    tone(c, { freq: 200, slide: 120, at: 0.13, dur: 0.14, type: 'sawtooth', gain: 0.1 })
+  },
+  // A tiny squeak for lizards, turtles, hedgehogs and axolotls
+  squeak: (c) => {
+    tone(c, { freq: 900, slide: 1500, dur: 0.1, type: 'triangle', gain: 0.1 })
+    tone(c, { freq: 1300, slide: 800, at: 0.12, dur: 0.12, type: 'triangle', gain: 0.1 })
+  },
+  levelup: (c) => {
+    notes(c, [523, 659, 784, 1047, 1319], { step: 0.1, dur: 0.18, type: 'triangle', gain: 0.15 })
+    tone(c, { freq: 1568, at: 0.55, dur: 0.6, type: 'triangle', gain: 0.14 })
+    tone(c, { freq: 2093, at: 0.55, dur: 0.6, type: 'sine', gain: 0.06 })
+  },
   // "Mee-ow"
   meow: (c) => {
     tone(c, { freq: 520, slide: 880, dur: 0.18, type: 'triangle', gain: 0.16 })
@@ -127,7 +148,8 @@ const SOUNDS = {
 // play('eat'), play('greet', 'dog'), ...
 export function playSound(name, kind = 'dog') {
   if (muted) return
-  const key = name === 'greet' ? (kind === 'cat' ? 'meow' : 'bark') : name
+  const GREETING = { dog: 'bark', cat: 'meow', bird: 'tweet', frog: 'ribbit' }
+  const key = name === 'greet' ? (GREETING[kind] || 'squeak') : name
   const fn = SOUNDS[key]
   const c = fn && audio()
   if (!c) return

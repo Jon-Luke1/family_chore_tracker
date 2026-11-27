@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { petMood } from '../lib/petArt'
-import { CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, describeEffects, petApi } from '../lib/pets'
+import { petMood, ageStage } from '../lib/petArt'
+import {
+  CATEGORIES, CATEGORY, WEARABLE, TIERS, MOOD_TEXT, KIND_LABEL, SPECIES_TIERS,
+  levelReward, describeEffects, petApi,
+} from '../lib/pets'
 import PetSprite from './PetSprite'
 import { playSound, isMuted, setMuted } from '../lib/petSounds'
 
@@ -22,6 +25,7 @@ const ACTIVITY_TEXT = {
   cuddling: (n) => `${n} is cuddling with you!`,
 }
 const CARE_SOUND = { food: 'eat', treat: 'treat', toy: 'toy', groom: 'groom', bed: 'sleep' }
+const TIER_NOTE = { 1: '🐶🐱 Dogs & cats', 2: '🦎 Exotic pets' }
 
 function StatBar({ icon, label, value }) {
   const v = Math.round(value)
@@ -54,49 +58,139 @@ function PetTokens({ tokens }) {
           <p className="text-4xl font-bold text-sun-500 font-serif">{tokens}</p>
         </div>
       </div>
-      <p className="text-xs text-sage-300 text-right max-w-[9rem]">
-        You earn 1 Pet Token for every token you earn!
+      <p className="text-xs text-sage-300 text-right max-w-[10rem]">
+        You earn 1 Pet Token for every token you earn, plus bonuses when a pet levels up!
       </p>
     </div>
   )
 }
 
-// Shown before a pet is adopted: pick a breed, then name it
-function PetStore({ species, tokens, onAdopt, busy }) {
+// The pet's level, its age, and how close it is to the next level
+function LevelHeader({ pet, flashKey }) {
+  const stage = ageStage(pet.level)
+  const maxed = pet.xp_next == null
+  const into = pet.xp - pet.xp_floor
+  const span = maxed ? 1 : pet.xp_next - pet.xp_floor
+  const pct = maxed ? 100 : Math.min(100, Math.round((into / span) * 100))
+  return (
+    <div className="w-full max-w-xs mb-1">
+      <div className="flex items-center justify-between mb-1">
+        <span key={flashKey} className={`text-sm font-bold text-forest-800 bg-sun-100 px-3 py-0.5 rounded-full ${flashKey ? 'pet-levelup' : ''}`}>
+          ⭐ Level {pet.level}{maxed ? ' · MAX' : ''}
+        </span>
+        <span className="text-xs text-gray-500">{stage.label}</span>
+      </div>
+      <div className="h-2.5 rounded-full bg-white/70 overflow-hidden border border-white">
+        <div className="h-full rounded-full bg-sun-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-[11px] text-gray-500 text-center mt-0.5">
+        {maxed ? 'Max level reached!' : `${into} / ${span} XP to level ${pet.level + 1}`}
+      </p>
+    </div>
+  )
+}
+
+// Hours of good care so far today: every full 24 hours with no empty bar earns 100 XP
+function CareStreak({ pet, now }) {
+  const hours = pet.care_since ? Math.max(0, (now - new Date(pet.care_since).getTime()) / 3600000) : null
+  const shown = hours === null ? 0 : Math.min(24, hours)
+  return (
+    <div>
+      <div className="flex justify-between text-xs text-gray-600 mb-1">
+        <span>⭐ Daily care</span>
+        <span>{hours === null ? 'Not started' : `${Math.floor(shown)}h / 24h`}</span>
+      </div>
+      <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+        <div className="h-full rounded-full bg-sun-500 transition-all duration-500" style={{ width: `${(shown / 24) * 100}%` }} />
+      </div>
+      <p className="text-[11px] text-gray-500 mt-1">
+        {hours === null
+          ? 'Get every bar above 0% to start your daily care streak.'
+          : 'Keep every bar above 0% for 24 hours to earn +100 XP!'}
+      </p>
+    </div>
+  )
+}
+
+// Row of your pets to switch between (plus a button to adopt another)
+function PetSwitcher({ pets, selectedId, onSelect, canAdd, onAdd }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {pets.map(p => (
+        <button
+          key={p.id}
+          onClick={() => onSelect(p.id)}
+          className={`shrink-0 flex items-center gap-1.5 pl-1 pr-3 py-1 rounded-full border bg-white ${
+            p.id === selectedId ? 'border-sun-500 ring-2 ring-sun-200' : ''
+          }`}
+        >
+          <PetSprite species={p.species_id} mood="happy" level={p.level} size={36} />
+          <span className="text-sm font-medium text-gray-800">{p.name}</span>
+          <span className="text-[10px] text-gray-400">Lv {p.level}</span>
+        </button>
+      ))}
+      {canAdd && (
+        <button onClick={onAdd} className="shrink-0 px-3 py-1 rounded-full border border-dashed border-sage-500 text-sm text-sage-700 bg-white">
+          ＋ Adopt
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Pick a breed, then name it. Used for the first pet and any extras.
+function PetStore({ species, tokens, onAdopt, busy, onCancel }) {
   const [chosen, setChosen] = useState(null)
   const [name, setName] = useState('')
 
   const cost = chosen?.cost ?? 25
   const canAfford = tokens >= cost
+  const tiers = [...new Set(species.map(s => s.tier))].sort()
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-800">🐾 Pet Store</h3>
-        <p className="text-sm text-gray-500">Pick a pet to adopt. Every pet costs {species[0]?.cost ?? 25} Pet Tokens.</p>
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">🐾 Pet Store</h3>
+          <p className="text-sm text-gray-500">Pick a pet to adopt and give it a name.</p>
+        </div>
+        {onCancel && (
+          <button onClick={onCancel} className="shrink-0 px-3 py-1.5 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
+            ← Back
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {species.map(sp => (
-          <button
-            key={sp.id}
-            onClick={() => { setChosen(sp); setName('') }}
-            className="bg-white rounded-2xl border shadow-sm p-3 flex flex-col items-center hover:border-sun-500 active:scale-95 transition-all"
-          >
-            <PetSprite species={sp.id} mood="happy" size={110} />
-            <span className="font-semibold text-gray-800 mt-1 text-sm">{sp.name}</span>
-            <span className="text-xs text-gray-400">{sp.kind === 'dog' ? '🐶 Dog' : '🐱 Cat'}</span>
-            <span className="mt-2 text-xs px-2.5 py-1 rounded-full bg-sun-100 text-sun-700 font-semibold">🐾 {sp.cost}</span>
-          </button>
-        ))}
-      </div>
+      {tiers.map(tier => (
+        <div key={tier} className="space-y-3">
+          <div>
+            <h4 className="font-semibold text-forest-800">{SPECIES_TIERS[tier]?.title || `Tier ${tier}`}</h4>
+            {SPECIES_TIERS[tier] && <p className="text-xs text-gray-500">{SPECIES_TIERS[tier].note}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {species.filter(sp => sp.tier === tier).map(sp => (
+              <button
+                key={sp.id}
+                onClick={() => { setChosen(sp); setName('') }}
+                className="bg-white rounded-2xl border shadow-sm p-3 flex flex-col items-center hover:border-sun-500 active:scale-95 transition-all"
+              >
+                <PetSprite species={sp.id} mood="happy" size={110} />
+                <span className="font-semibold text-gray-800 mt-1 text-sm text-center">{sp.name}</span>
+                <span className="text-xs text-gray-400">{KIND_LABEL[sp.kind] || sp.kind}</span>
+                <span className="mt-2 text-xs px-2.5 py-1 rounded-full bg-sun-100 text-sun-700 font-semibold">🐾 {sp.cost}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
 
       {chosen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4" onClick={() => setChosen(null)}>
           <div className="bg-white rounded-3xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex flex-col items-center">
-              <PetSprite species={chosen.id} mood="happy" size={170} className="pet-bob" />
+              <PetSprite species={chosen.id} mood="happy" level={1} size={170} className="pet-bob" />
               <h4 className="font-bold text-forest-800 text-lg">{chosen.name}</h4>
+              <p className="text-xs text-gray-500">Starts as a baby and grows as you level up!</p>
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Give your new pet a name</label>
@@ -131,8 +225,7 @@ function PetStore({ species, tokens, onAdopt, busy }) {
   )
 }
 
-// `banner` is an optional note shown on top (used by parent test mode)
-// Parent test mode only: drag the sliders to set a pet's stats and watch how it reacts
+// Parent test mode only: drag the sliders to set a pet's stats and level and watch how it reacts
 const TEST_STATS = [
   { key: 'fullness', icon: '🍗', label: 'Food', param: 'p_fullness' },
   { key: 'love', icon: '💖', label: 'Love', param: 'p_love' },
@@ -142,16 +235,21 @@ const TEST_STATS = [
 
 function TestControls({ pet, onChanged }) {
   const [draft, setDraft] = useState({})
+  const [levelDraft, setLevelDraft] = useState(null)
   const [error, setError] = useState('')
   const timer = useRef(null)
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const levelTimer = useRef(null)
+  useEffect(() => () => {
+    clearTimeout(timer.current)
+    clearTimeout(levelTimer.current)
+  }, [])
 
   // Wait for the slider to settle, then save and refresh
   const commit = (vals) => {
     clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
       const args = Object.fromEntries(TEST_STATS.map(s => [s.param, vals[s.key] ?? null]))
-      const { error: rpcError } = await supabase.rpc('pet_test_set_stats', args)
+      const { error: rpcError } = await supabase.rpc('pet_test_set_stats', { p_pet_id: pet.id, ...args })
       setError(rpcError ? rpcError.message : '')
       await onChanged()
       setDraft({})
@@ -167,6 +265,17 @@ function TestControls({ pet, onChanged }) {
     setDraft(all)
     commit(all)
   }
+  const changeLevel = (value) => {
+    setLevelDraft(value)
+    clearTimeout(levelTimer.current)
+    levelTimer.current = setTimeout(async () => {
+      const { error: rpcError } = await supabase.rpc('pet_test_set_level', { p_pet_id: pet.id, p_level: value })
+      setError(rpcError ? rpcError.message : '')
+      await onChanged()
+      setLevelDraft(null)
+    }, 300)
+  }
+  const levelValue = levelDraft ?? pet.level
 
   return (
     <div className="bg-sun-50 border border-sun-200 rounded-2xl p-4 space-y-3">
@@ -197,12 +306,25 @@ function TestControls({ pet, onChanged }) {
           </label>
         )
       })}
+      <label className="flex items-center gap-3 text-sm text-gray-700 pt-1 border-t border-sun-200">
+        <span className="w-16 shrink-0">⭐ Level</span>
+        <input
+          type="range"
+          min="1"
+          max="30"
+          value={levelValue}
+          onChange={e => changeLevel(Number(e.target.value))}
+          className="flex-1 min-w-0 accent-sage-600"
+        />
+        <span className="w-8 text-right tabular-nums text-xs text-gray-500">{levelValue}</span>
+      </label>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <p className="text-xs text-gray-500">Changes save as you drag. Stats drift down from there as normal.</p>
+      <p className="text-xs text-gray-500">Changes save as you drag. Stats drift down from there as normal, and the level slider pays no bonus tokens.</p>
     </div>
   )
 }
 
+// `banner` is an optional note shown on top, and `testMode` adds the test sliders (parent test mode)
 export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const [status, setStatus] = useState(null)
   const [species, setSpecies] = useState([])
@@ -217,11 +339,16 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
   const [renaming, setRenaming] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [soundOff, setSoundOff] = useState(isMuted())
+  const [activity, setActivity] = useState(null)
+  const [selectedId, setSelectedId] = useState(null)
+  const [adding, setAdding] = useState(false)
+  const [levelFlash, setLevelFlash] = useState({ id: null, key: 0 })
   const toastTimer = useRef(null)
   const greeted = useRef(false)
-  const [activity, setActivity] = useState(null)
   const activityTimer = useRef(null)
   const sceneRef = useRef(null)
+  const knownLevels = useRef(null)
+  const onLevelUp = useRef(null)
 
   const loadStatus = useCallback(async () => {
     const { data, error } = await petApi.status()
@@ -232,6 +359,15 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     setLoadError('')
     setStatus({ ...data, loadedAt: Date.now() })
     if (onTokensChange) onTokensChange(data.tokens)
+
+    // Spot pets that gained a level since the last check (from care or a full day of good care)
+    const before = knownLevels.current
+    knownLevels.current = Object.fromEntries(data.pets.map(p => [p.id, p.level]))
+    if (before) {
+      for (const p of data.pets) {
+        if (before[p.id] != null && p.level > before[p.id] && onLevelUp.current) onLevelUp.current(p, before[p.id])
+      }
+    }
   }, [onTokensChange])
 
   useEffect(() => {
@@ -265,13 +401,16 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     clearTimeout(activityTimer.current)
   }, [])
 
-  const pet = status?.pet || null
+  const pets = status?.pets || []
+  const pet = pets.find(p => p.id === selectedId) || pets[0] || null
   const inventory = status?.inventory || {}
   const tokens = status?.tokens || 0
+  const maxPets = status?.max_pets || 5
   const baseMood = useMemo(() => petMood(pet), [pet])
   const mood = activity || baseMood
   const petSpecies = species.find(s => s.id === pet?.species_id)
   const speciesName = petSpecies?.name
+  const petTier = petSpecies?.tier || 1
 
   // The pet says hello the first time it's seen after opening the page
   useEffect(() => {
@@ -296,7 +435,18 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
 
   const playFx = (emoji) => setFx({ emoji, key: Date.now() })
 
-  // Runs an action, reports the result, and refreshes. Returns true on success.
+  // Always points at the latest render so loadStatus can celebrate a level-up
+  useEffect(() => {
+    onLevelUp.current = (p, from) => {
+      let reward = 0
+      for (let l = from + 1; l <= p.level; l++) reward += levelReward(l)
+      showToast(`🎉 ${p.name} reached level ${p.level}! +${reward} Pet Tokens`)
+      playSound('levelup')
+      playFx('🎉')
+      setLevelFlash({ id: p.id, key: Date.now() })
+    }
+  })
+
   const startActivity = (kind) => {
     setActivity(kind)
     clearTimeout(activityTimer.current)
@@ -308,6 +458,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     }
   }
 
+  // Runs an action, reports the result, and refreshes. Returns true on success.
   const run = async (fn, { ok, emoji, sound, activity: kind } = {}) => {
     if (busy) return false
     setBusy(true)
@@ -326,12 +477,33 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     return !err
   }
 
-  const adopt = (sp, name) =>
-    run(() => petApi.adopt(sp.id, name), { ok: `Welcome home, ${name.trim()}! 🎉`, emoji: '🎉', sound: 'adopt' })
+  const selectPet = (id) => {
+    setSelectedId(id)
+    setPicker(null)
+    setActivity(null)
+    setRenaming(false)
+  }
+
+  const adopt = async (sp, name) => {
+    let newId = null
+    const done = await run(async () => {
+      const { error, data } = await petApi.adopt(sp.id, name)
+      newId = data
+      return error
+    }, { ok: `Welcome home, ${name.trim()}! 🎉`, emoji: '🎉', sound: 'adopt' })
+    if (done) {
+      if (newId) selectPet(newId)
+      setAdding(false)
+      setTab('home')
+    }
+    return done
+  }
 
   const applyItem = async (item) => {
     const cat = CATEGORY[item.category]
-    const done = await run(() => petApi.use(item.id), { ok: cat.done(pet.name, item.name), emoji: cat.fx, sound: CARE_SOUND[item.category], activity: ACTIVITY_OF[item.category] })
+    const done = await run(() => petApi.use(pet.id, item.id), {
+      ok: cat.done(pet.name, item.name), emoji: cat.fx, sound: CARE_SOUND[item.category], activity: ACTIVITY_OF[item.category],
+    })
     if (done && cat.consumable && (inventory[item.id] || 0) <= 1) setPicker(null)
   }
 
@@ -342,13 +514,13 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
       sound: 'buy',
     })
 
-  const wear = (item) => run(() => petApi.equip(item.id), { emoji: '✨', sound: 'sparkle' })
-  const takeOff = (slot) => run(() => petApi.unequip(slot), { sound: 'take' })
-  const cuddle = () => run(() => petApi.cuddle(), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr', activity: 'cuddling' })
+  const wear = (item) => run(() => petApi.equip(pet.id, item.id), { emoji: '✨', sound: 'sparkle' })
+  const takeOff = (slot) => run(() => petApi.unequip(pet.id, slot), { sound: 'take' })
+  const cuddle = () => run(() => petApi.cuddle(pet.id), { ok: `${pet.name} loves cuddles!`, emoji: '🥰', sound: 'purr', activity: 'cuddling' })
 
   const saveName = async () => {
     if (!nameDraft.trim()) return
-    if (await run(() => petApi.rename(nameDraft), { ok: 'New name saved!', sound: 'save' })) setRenaming(false)
+    if (await run(() => petApi.rename(pet.id, nameDraft), { ok: 'New name saved!', sound: 'save' })) setRenaming(false)
   }
 
   if (loadError) {
@@ -366,7 +538,13 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
     ? Math.ceil((new Date(pet.cuddle_ready_at).getTime() - status.loadedAt) / 60000)
     : 0
 
-  const ownedIn = (catKey) => items.filter(i => i.category === catKey && (inventory[i.id] || 0) > 0)
+  // Food and treats are made for one kind of pet; everything else suits any pet
+  const suitsPet = (item) => item.for_tier == null || item.for_tier === petTier
+  const ownedIn = (catKey) => items.filter(i => i.category === catKey && (inventory[i.id] || 0) > 0 && suitsPet(i))
+  // Which of your other pets is already wearing an item
+  const wornBy = (itemId) => pets.find(p => p.id !== pet?.id && (p.collar === itemId || p.head === itemId || p.face === itemId))
+
+  const showStore = !pet || adding
 
   return (
     <div className="space-y-5">
@@ -387,7 +565,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
         </button>
       </div>
 
-      {toast && !(pet && tab === 'home') && (
+      {toast && !(pet && !showStore && tab === 'home') && (
         <div
           role="status"
           className={`rounded-xl px-4 py-3 text-sm font-medium text-center ${
@@ -398,10 +576,24 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
         </div>
       )}
 
-      {!pet ? (
-        <PetStore species={species} tokens={tokens} onAdopt={adopt} busy={busy} />
+      {showStore ? (
+        <PetStore
+          species={species}
+          tokens={tokens}
+          onAdopt={adopt}
+          busy={busy}
+          onCancel={pet ? () => setAdding(false) : null}
+        />
       ) : (
         <>
+          <PetSwitcher
+            pets={pets}
+            selectedId={pet.id}
+            onSelect={selectPet}
+            canAdd={pets.length < maxPets}
+            onAdd={() => setAdding(true)}
+          />
+
           <div className="flex bg-white rounded-2xl border overflow-hidden">
             {[
               { key: 'home', label: 'Home', icon: '🏠' },
@@ -423,31 +615,35 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
           {tab === 'home' && (
             <div className="space-y-4">
               <div ref={sceneRef} className="rounded-3xl border bg-gradient-to-b from-sage-100 to-tan-50 p-4 flex flex-col items-center relative overflow-hidden scroll-mt-4">
-                {toast && (
-                  <div
-                    role="status"
-                    className={`absolute top-2 inset-x-3 z-10 rounded-xl px-3 py-1.5 text-xs font-medium text-center shadow-sm ${
-                      toast.kind === 'error' ? 'bg-red-50 text-red-700' : 'bg-white/90 text-sage-800'
-                    }`}
-                  >
-                    {toast.text}
-                  </div>
-                )}
-                <div className="relative">
-                  <PetSprite
-                    species={pet.species_id}
-                    mood={mood}
-                    collar={pet.collar}
-                    head={pet.head}
-                    face={pet.face}
-                    size={230}
-                    className={ACTIVITY_CLASS[activity] || 'pet-bob'}
-                  />
-                  {fx && (
-                    <span key={fx.key} className="pet-pop absolute left-1/2 top-8 -translate-x-1/2 text-4xl pointer-events-none">
-                      {fx.emoji}
-                    </span>
+                <LevelHeader pet={pet} flashKey={levelFlash.id === pet.id ? levelFlash.key : 0} />
+                <div className="relative w-full flex justify-center">
+                  {toast && (
+                    <div
+                      role="status"
+                      className={`absolute top-0 inset-x-0 z-10 rounded-xl px-3 py-1.5 text-xs font-medium text-center shadow-sm ${
+                        toast.kind === 'error' ? 'bg-red-50 text-red-700' : 'bg-white/90 text-sage-800'
+                      }`}
+                    >
+                      {toast.text}
+                    </div>
                   )}
+                  <div className="relative">
+                    <PetSprite
+                      species={pet.species_id}
+                      mood={mood}
+                      collar={pet.collar}
+                      head={pet.head}
+                      face={pet.face}
+                      level={pet.level}
+                      size={230}
+                      className={ACTIVITY_CLASS[activity] || 'pet-bob'}
+                    />
+                    {fx && (
+                      <span key={fx.key} className="pet-pop absolute left-1/2 top-8 -translate-x-1/2 text-4xl pointer-events-none">
+                        {fx.emoji}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {renaming ? (
@@ -534,7 +730,9 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                   ))}
                   {ownedIn(picker).length === 0 && (
                     <div className="text-center py-2">
-                      <p className="text-sm text-gray-500">You don&apos;t have any {CATEGORY[picker].label.toLowerCase()} yet.</p>
+                      <p className="text-sm text-gray-500">
+                        You don&apos;t have any {CATEGORY[picker].label.toLowerCase()} for {pet.name} yet.
+                      </p>
                       <button
                         onClick={() => { setShopCat(picker); setTab('shop') }}
                         className="mt-2 px-4 py-1.5 bg-sun-500 text-white rounded-full text-sm font-semibold"
@@ -545,14 +743,18 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                   )}
                 </div>
               )}
+
               <div className="bg-white rounded-2xl border p-4 space-y-3">
                 <StatBar icon="🍗" label="Food" value={pet.fullness} />
                 <StatBar icon="💖" label="Love" value={pet.love} />
                 <StatBar icon="🫧" label="Clean" value={pet.clean} />
                 <StatBar icon="💤" label="Rest" value={pet.rest} />
+                <div className="pt-2 border-t">
+                  <CareStreak pet={pet} now={status.loadedAt} />
+                </div>
               </div>
 
-              {testMode && <TestControls pet={pet} onChanged={loadStatus} />}
+              {testMode && <TestControls key={pet.id} pet={pet} onChanged={loadStatus} />}
             </div>
           )}
 
@@ -582,6 +784,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                       <PetSprite
                         species={pet.species_id}
                         mood="happy"
+                        level={pet.level}
                         collar={item.category === 'collar' ? item.id : null}
                         head={item.category === 'head' ? item.id : null}
                         face={item.category === 'face' ? item.id : null}
@@ -595,6 +798,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                         <h4 className="font-medium text-gray-800 text-sm">{item.name}</h4>
                         <TierBadge tier={item.tier} />
                       </div>
+                      {item.for_tier && <p className="text-[11px] text-gray-400 mt-0.5">For {TIER_NOTE[item.for_tier]}</p>}
                       {item.description && <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>}
                       {describeEffects(item) && <p className="text-xs text-sage-700 mt-0.5">{describeEffects(item)}</p>}
                       {cat.consumable && have > 0 && <p className="text-xs text-gray-400">You have {have}</p>}
@@ -618,16 +822,18 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
 
           {tab === 'bag' && (
             <div className="space-y-4">
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center">
                 <PetSprite
                   species={pet.species_id}
                   mood="happy"
                   collar={pet.collar}
                   head={pet.head}
                   face={pet.face}
+                  level={pet.level}
                   size={150}
                   className="pet-bob"
                 />
+                <p className="text-sm font-semibold text-forest-800">{pet.name}</p>
               </div>
 
               {WEARABLE.map(cat => {
@@ -652,16 +858,19 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
                         >
                           None
                         </button>
-                        {owned.map(item => (
-                          <button
-                            key={item.id}
-                            onClick={() => wear(item)}
-                            disabled={busy || wearing === item.id}
-                            className={`px-3 py-1.5 rounded-full text-sm border ${wearing === item.id ? 'bg-forest-800 text-white border-forest-800' : 'bg-white text-gray-700'}`}
-                          >
-                            {item.emoji} {item.name}
-                          </button>
-                        ))}
+                        {owned.map(item => {
+                          const other = wornBy(item.id)
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => wear(item)}
+                              disabled={busy || wearing === item.id}
+                              className={`px-3 py-1.5 rounded-full text-sm border ${wearing === item.id ? 'bg-forest-800 text-white border-forest-800' : 'bg-white text-gray-700'}`}
+                            >
+                              {item.emoji} {item.name}{other ? ` (on ${other.name})` : ''}
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -669,7 +878,7 @@ export default function PetPage({ onTokensChange, banner, testMode = false }) {
               })}
 
               <div className="bg-white rounded-2xl border p-3">
-                <p className="text-sm font-semibold text-gray-700 mb-2">🎒 Supplies &amp; toys</p>
+                <p className="text-sm font-semibold text-gray-700 mb-2">🎒 Supplies &amp; toys (shared by all your pets)</p>
                 {items.filter(i => !CATEGORY[i.category].slot && (inventory[i.id] || 0) > 0).length === 0 ? (
                   <p className="text-xs text-gray-400">Your bag is empty. Visit the shop!</p>
                 ) : (
